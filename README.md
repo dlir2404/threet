@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/branding/threet-logo.svg" alt="threet logo: a spreadsheet icon drawn with Threads glyphs" width="120">
+
 # threet
 
 **Read Threads in a Google Sheets disguise: your feed, threads, and replies as rows in a spreadsheet, right on threads.com.**
@@ -43,12 +45,26 @@ There is no API key or threet backend: posts are parsed and displayed locally in
 
 ## Install
 
-threet is not on the Chrome Web Store yet. Build it and load it unpacked:
+threet is not on the Chrome Web Store yet. Install the prebuilt extension from [GitHub Releases](https://github.com/dlir2404/threet/releases/latest); no Node.js or build tools are needed:
+
+1. Under **Assets**, download `threet-v<version>.zip` (not **Source code**).
+2. Extract the ZIP into a folder you will keep. It contains `manifest.json`, the extension code, fonts, and licenses.
+3. Open `chrome://extensions` and turn on **Developer mode**.
+4. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
+5. Open [threads.com](https://www.threads.com) and log in as usual.
+
+Keep that folder after installation: Chrome loads the extension from it. To update, replace its contents with the new release's files, click **Reload** on the extension in `chrome://extensions`, and reload your Threads tabs. Updates are manual for unpacked extensions.
+
+**Browser:** Chrome (or another Chromium browser with Manifest V3).
+
+### Build from source
+
+If no release is available yet, or you want to develop threet:
 
 ```sh
 git clone https://github.com/dlir2404/threet.git
 cd threet
-npm install
+npm ci
 npm run build          # → dist/
 ```
 
@@ -56,7 +72,7 @@ npm run build          # → dist/
 2. **Load unpacked** → choose the `dist/` folder.
 3. Open [threads.com](https://www.threads.com) and log in as usual.
 
-**Requirements:** Chrome (or another Chromium browser with Manifest V3). For the current build and test toolchain, use Node.js 24.15.0 or later within the 24.x series. Node.js 22.22.2 or later within 22.x, and Node.js 26+, are also supported by the installed Vitest and jsdom versions.
+**Build requirements:** For the current build and test toolchain, use Node.js 24.15.0 or later within the 24.x series (CI uses 24.20.0). Node.js 22.22.2 or later within 22.x, and Node.js 26+, are also supported by the installed Vitest and jsdom versions.
 
 ## Quick start
 
@@ -144,7 +160,7 @@ npm run typecheck
 - `dist-dev/` includes a debug bridge to the **threet-debug** MCP server (`mcp/server.mjs`, declared in `.mcp.json`), so an agent such as Claude Code can inspect state, read the live DOM, evaluate JS, take screenshots, send input, and reload the extension in your Chrome. It only accepts connections from a `chrome-extension://` origin carrying the token in `.threet-dev-token` (generated, gitignored). `dist/` contains none of it.
 - `node scripts/preview.mjs [saved-page.html] --dist dist-dev` serves a saved Threads page (scripts stripped) with the built overlay for offline checks; `node scripts/smoke-mcp.mjs` smoke-tests the MCP server.
 - Eight parser tests run against a page you save yourself to `test/fixtures/feed-home.html`. Fixtures contain other people's posts, so they are gitignored. On a fresh clone, those eight tests are skipped; the remaining ten tests run without the fixture. Check the skipped count before treating a passing run as full parser coverage.
-- Automated tests currently cover parser helpers, the saved feed fixture, store merging, and sheet row modeling. Navigation, iframe fallback, keyboard interactions, and the UI still need manual checks in Chrome against live Threads. No CI workflow is configured yet.
+- Automated tests currently cover parser helpers, the saved feed fixture, store merging, and sheet row modeling. Navigation, iframe fallback, keyboard interactions, and the UI still need manual checks in Chrome against live Threads. GitHub Actions runs typecheck, tests, and production packaging on pull requests, pushes to `main`, and version tags; the private fixture tests are skipped in CI.
 
 Source layout:
 
@@ -167,6 +183,21 @@ Issues and pull requests are welcome. Threads changes its markup often; parser f
 npm run typecheck && npm test && npm run build
 ```
 
+### Publishing a release
+
+The [Build and release workflow](.github/workflows/build-release.yml) publishes a GitHub Release with an installable ZIP when a `v<version>` tag is pushed. The tag must match `package.json`; for example, `v0.1.0` requires version `0.1.0`. Only the release job has permission to publish. It uses GitHub's built-in token, so no extra secret is needed.
+
+For the first release, after the workflow is committed and pushed:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+For subsequent releases, update the version and lockfile with `npm version patch --no-git-tag-version` (or `minor` / `major`), commit and push those changes, then tag that commit with the new version and push the tag. Check the workflow run under **Actions**; the release is published only after checks and packaging succeed. Use a new version tag for changed releases.
+
+To build the same ZIP locally, run `npm run package` (requires the `zip` command). The result is `build/release/threet-v<version>.zip`, with `manifest.json` at the archive root. Build output remains gitignored. Successful CI runs also keep the ZIP as a `threet-extension` artifact for 14 days; running the workflow manually builds an artifact without publishing a release.
+
 ## Support
 
 threet is free and open source. If it makes your day a little better, you can support its development:
@@ -182,6 +213,8 @@ Please report vulnerabilities privately through [GitHub security advisories](htt
 ## Disclaimer
 
 threet is an independent project. It is not affiliated with, endorsed by, or sponsored by Google or Meta. Google Sheets is a trademark of Google LLC; Threads is a trademark of Meta Platforms, Inc. The Sheets-like interface is recreated from scratch; no code or assets from Google Sheets are included. The icon set and UI font are Google's open-source releases, used under their licenses below.
+
+The threet logo is a playful mashup: a spreadsheet-file silhouette drawn entirely with the Threads glyph (traced from Threads' public app icon). It refers to both products to describe what threet does and implies no endorsement. Source and build script: [assets/branding/source](assets/branding/source).
 
 Third-party components: [Google Sans](https://fonts.google.com/specimen/Google+Sans) (SIL Open Font License 1.1, via Fontsource), [Material Symbols](https://github.com/google/material-design-icons) (Apache License 2.0), [Preact](https://preactjs.com) (MIT).
 

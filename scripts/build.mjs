@@ -43,6 +43,14 @@ function prepareFonts() {
   writeFileSync(join(root, 'build/fonts.css'), css);
 }
 
+const ICON_SIZES = [16, 32, 48, 128];
+const ICONS = Object.fromEntries(ICON_SIZES.map((s) => [String(s), `icons/icon-${s}.png`]));
+
+function copyIcons() {
+  mkdirSync(join(out, 'icons'), { recursive: true });
+  for (const s of ICON_SIZES) copyFileSync(join(root, 'assets/icons', `icon-${s}.png`), join(out, 'icons', `icon-${s}.png`));
+}
+
 function manifest() {
   const matches = ['*://*.threads.com/*', '*://*.threads.net/*'];
   const m = {
@@ -58,7 +66,8 @@ function manifest() {
     declarative_net_request: { rule_resources: [{ id: 'self_frame', enabled: true, path: 'rules.json' }] },
     host_permissions: matches,
     background: { service_worker: 'background.js' },
-    action: { default_title: dev ? 'threet (dev) — toggle sheet' : 'threet — toggle sheet' },
+    icons: ICONS,
+    action: { default_title: dev ? 'threet (dev) — toggle sheet' : 'threet — toggle sheet', default_icon: ICONS },
     content_scripts: [{ matches, js: ['content.js'], run_at: 'document_start' }],
     web_accessible_resources: [{ resources: ['fonts/*'], matches }],
   };
@@ -108,6 +117,7 @@ const entries = [
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 prepareFonts();
+copyIcons();
 manifest();
 
 if (watch) {

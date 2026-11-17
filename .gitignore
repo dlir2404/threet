@@ -6,3 +6,4 @@ dist-dev/
 test/fixtures/
 *.log
 build/
+.DS_Store
