@@ -4,6 +4,16 @@
   "private": true,
   "type": "module",
   "description": "Read Threads in a Google Sheets disguise (Chrome extension).",
+  "license": "Apache-2.0",
+  "author": "dlir2404",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dlir2404/threet.git"
+  },
+  "homepage": "https://github.com/dlir2404/threet#readme",
+  "bugs": {
+    "url": "https://github.com/dlir2404/threet/issues"
+  },
   "scripts": {
     "dev": "node scripts/build.mjs --dev --watch",
     "build": "node scripts/build.mjs",
