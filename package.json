@@ -1,0 +1,32 @@
+{
+  "name": "threet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read Threads in a Google Sheets disguise (Chrome extension).",
+  "scripts": {
+    "dev": "node scripts/build.mjs --dev --watch",
+    "build": "node scripts/build.mjs",
+    "build:dev": "node scripts/build.mjs --dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "mcp": "node mcp/server.mjs"
+  },
+  "devDependencies": {
+    "@fontsource/google-sans": "^5.3.2",
+    "@material-symbols/svg-400": "^0.49.0",
+    "@types/chrome": "^0.3.7",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "jsdom": "^31.0.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "preact": "^10.29.8",
+    "ws": "^8.23.0",
+    "zod": "^4.6.7"
+  }
+}

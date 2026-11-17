@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-dev/
+.threet-dev-token
+# Saved Threads pages contain other people's posts — keep them local only.
+test/fixtures/
+*.log
+build/

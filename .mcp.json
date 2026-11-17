@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "threet-debug": {
+      "command": "node",
+      "args": ["mcp/server.mjs"]
+    }
+  }
+}
