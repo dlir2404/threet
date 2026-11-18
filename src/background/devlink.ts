@@ -1,3 +1,4 @@
+import hosts from '../sites/hosts.json';
 /**
  * Dev-only link between the extension and the threet-debug MCP server (mcp/server.mjs).
  *
@@ -7,7 +8,8 @@
  * Origin is a chrome-extension:// URL and that present the build-time dev token.
  */
 
-const THREADS_URLS = ['*://*.threads.com/*', '*://*.threads.net/*'];
+/** Tabs of every supported site. */
+const SITE_URLS = Object.values(hosts).flatMap((s) => s.domains.map((d) => `*://*.${d}/*`));
 const URL_WS = `ws://127.0.0.1:${__DEV_PORT__}/?token=${__DEV_TOKEN__}`;
 
 let ws: WebSocket | null = null;
@@ -64,8 +66,8 @@ function send(obj: unknown) {
 
 async function pickTab(tabId?: number): Promise<chrome.tabs.Tab> {
   if (tabId != null) return chrome.tabs.get(tabId);
-  const tabs = await chrome.tabs.query({ url: THREADS_URLS });
-  if (!tabs.length) throw new Error('No Threads tab open. Open https://www.threads.com in Chrome.');
+  const tabs = await chrome.tabs.query({ url: SITE_URLS });
+  if (!tabs.length) throw new Error('No supported tab open (Threads, Reddit or voz.vn).');
   return tabs.find((t) => t.active && t.highlighted) ?? tabs.find((t) => t.active) ?? tabs[0];
 }
 
@@ -99,7 +101,7 @@ async function handle(method: string, p: any): Promise<unknown> {
       return { pong: Date.now() };
 
     case 'tabs':
-      return (await chrome.tabs.query({ url: THREADS_URLS })).map((t) => ({ id: t.id, url: t.url, title: t.title, active: t.active, windowId: t.windowId }));
+      return (await chrome.tabs.query({ url: SITE_URLS })).map((t) => ({ id: t.id, url: t.url, title: t.title, active: t.active, windowId: t.windowId }));
 
     case 'content': {
       const tab = await pickTab(p.tabId);
@@ -152,6 +154,17 @@ async function handle(method: string, p: any): Promise<unknown> {
           await new Promise((r) => setTimeout(r, e.ms ?? 300));
         }
       }
+      return { ok: true };
+    }
+
+    case 'openTab': {
+      // Background tab on a supported site, for inspecting its DOM without touching the user's tabs.
+      const t = await chrome.tabs.create({ url: p.url, active: !!p.active });
+      return { id: t.id };
+    }
+
+    case 'closeTab': {
+      await chrome.tabs.remove(p.tabId);
       return { ok: true };
     }
 
@@ -219,7 +232,7 @@ export function startDevLink() {
   chrome.storage.local.get('reloadTabsAfterRestart').then(async ({ reloadTabsAfterRestart }) => {
     if (!reloadTabsAfterRestart) return;
     await chrome.storage.local.remove('reloadTabsAfterRestart');
-    for (const t of await chrome.tabs.query({ url: THREADS_URLS })) if (t.id != null) chrome.tabs.reload(t.id);
+    for (const t of await chrome.tabs.query({ url: SITE_URLS })) if (t.id != null) chrome.tabs.reload(t.id);
   });
   connect();
 }

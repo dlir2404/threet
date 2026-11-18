@@ -1,4 +1,5 @@
 import { actions } from '../actions';
+import { site } from '../site';
 import type { UpdateInfo } from '../../shared/update';
 import { I } from './common';
 
@@ -45,7 +46,7 @@ export function UpdateDialog({ info, current }: { info: UpdateInfo; current: str
           <ol class="up-steps">
             <li>Bấm <b>Tải bản mới</b> để tải file <code>threet-v{info.version}.zip</code>.</li>
             <li>Giải nén và <b>chép đè vào đúng thư mục</b> extension đang dùng (giữ thư mục cũ thì tên tài liệu, tên cột… vẫn còn).</li>
-            <li>Mở <code>chrome://extensions</code>, bấm <b>Reload</b> ở threet, rồi tải lại tab Threads.</li>
+            <li>Mở <code>chrome://extensions</code>, bấm <b>Reload</b> ở threet, rồi tải lại tab {site().name}.</li>
           </ol>
         </div>
         <div class="foot">

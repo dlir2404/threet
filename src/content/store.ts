@@ -1,13 +1,18 @@
 import type { UpdateInfo } from '../shared/update';
-import type { PageKind, Post, PostGroup, ThreadRow } from '../shared/types';
+import type { Post, PostGroup, ThreadRow } from '../shared/types';
+import type { Route } from '../sites/types';
+import { site } from './site';
+
+export type { Route };
 
 export interface Settings {
   enabled: boolean;
   title: string;
   formulaExpanded: boolean;
   showPreviews: boolean;
+  /** Column widths, keyed "<site>.<column>". */
   colWidths: Record<string, number>;
-  /** User-renamed column titles, by column key. */
+  /** User-renamed column titles, keyed "<site>.<column>" (see prefKey in sheet.ts). */
   colTitles: Record<string, string>;
   zoom: number;
   /** The guide pops up once on first use. */
@@ -35,7 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export interface Tab {
-  /** Path of the real Threads page this sheet mirrors. Also the tab id. */
+  /** Path of the real page this sheet mirrors. Also the tab id. */
   id: string;
   kind: 'list' | 'thread';
   title: string;
@@ -49,11 +54,6 @@ export interface ListData {
   groups: Record<string, PostGroup>;
 }
 
-export interface Route {
-  kind: PageKind;
-  path: string;
-  code?: string;
-}
 
 export interface Sel {
   r: number;
@@ -93,6 +93,8 @@ export interface LightboxItem {
   src: string;
   alt?: string;
   video?: boolean;
+  /** Videos: playable URL when the site exposes one. */
+  play?: string;
   /** Videos: live element key + post code, to play it (see ui/Video.tsx). */
   vkey?: string;
   code?: string;
@@ -121,22 +123,13 @@ export interface OpenMenu {
 
 type Listener = () => void;
 
+/** Route of a path on the current site. */
 export function routeOf(pathname: string): Route {
-  const path = pathname.replace(/\/+$/, '') || '/';
-  const m = /^\/@([^/]+)\/post\/([^/?#]+)/.exec(path);
-  if (m) return { kind: 'thread', path: `/@${m[1]}/post/${m[2]}`, code: m[2] };
-  if (path === '/' || path === '/for_you' || path === '/following' || path === '/liked' || path === '/saved') {
-    return { kind: 'feed', path };
-  }
-  if (/^\/@[^/]+(\/(replies|reposts|media))?$/.test(path)) return { kind: 'profile', path };
-  return { kind: 'other', path };
+  return site().routeOf(pathname);
 }
 
-export function tabTitle(route: Route, author?: string): string {
-  if (route.kind === 'thread') return author ? `@${author}` : `#${route.code?.slice(0, 6)}`;
-  if (route.kind === 'profile') return route.path.slice(1);
-  if (route.path === '/following') return 'Following';
-  return 'Overview';
+export function tabTitle(route: Route, post?: Post): string {
+  return site().tabTitle(route, post);
 }
 
 class Store {
@@ -272,12 +265,12 @@ class Store {
     this.setThread(route.code, rows);
     const fi = rows.findIndex((r) => r.focal);
     if (fi < 0) return;
-    const want = tabTitle(route, rows[fi].post.author);
+    const want = tabTitle(route, rows[fi].post);
     const tab = this.state.tabs.find((t) => t.id === route.path);
     if (tab && !tab.renamed && tab.title !== want) {
       this.set((s) => ({ tabs: s.tabs.map((t) => (t.id === route.path ? { ...t, title: want } : t)) }));
     }
-    if (!this.state.sel[route.path]) this.setSel(route.path, { r: fi + 1, c: 4 });
+    if (!this.state.sel[route.path]) this.setSel(route.path, { r: fi + 1, c: Math.max(0, site().columns.findIndex((c) => c.key === 'text')) });
   }
 
   setSel(tab: string, sel: Sel) {
@@ -289,9 +282,13 @@ class Store {
   }
 }
 
+function sameCounts(a: Post['counts'], b: Post['counts']): boolean {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+}
+
 function samePost(a: Post, b: Post): boolean {
-  return a.text === b.text && a.counts.like === b.counts.like && a.counts.reply === b.counts.reply
-    && a.counts.repost === b.counts.repost && a.counts.share === b.counts.share && a.media.length === b.media.length
+  return a.text === b.text && sameCounts(a.counts, b.counts) && a.media.length === b.media.length
     && a.media.every((m, i) => !!m.full === !!b.media[i].full);
 }
 

@@ -1,4 +1,6 @@
-import type { Counts, Media, Post, PostGroup, ThreadRow } from '../shared/types';
+import type { Counts, Media, Post, PostGroup, ThreadRow } from '../../shared/types';
+import { largestFromSrcset, markInline, textOf } from '../../content/dom';
+import { frameOf, registerVideo } from '../../content/media';
 
 /**
  * Reads posts out of the live Threads DOM.
@@ -40,115 +42,13 @@ function own<T extends Element>(root: Element, sel: string): T[] {
   return Array.from(root.querySelectorAll<T>(sel)).filter((el) => !inNested(el, root));
 }
 
-const BLOCK = new Set(['DIV', 'P', 'LI', 'UL', 'OL', 'BLOCKQUOTE', 'SECTION', 'ARTICLE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'PRE']);
-
-/**
- * Copy "this block-level tag is actually displayed inline" from the live element onto its clone
- * (clones are detached, so getComputedStyle can't be used on them).
- */
-function markInline(orig: Element, clone: Element) {
-  if (!orig.isConnected) return;
-  const a = orig.querySelectorAll('*');
-  const b = clone.querySelectorAll('*');
-  // A block inside an inline-block box doesn't break the surrounding line either, so once an
-  // element is inline-level everything below it counts as inline.
-  for (let i = 0; i < a.length && i < b.length; i++) {
-    if (b[i].hasAttribute('data-threet-inline')) continue;
-    // Use the element's own window: thread sheets parse a same-origin iframe.
-    const view = a[i].ownerDocument.defaultView ?? window;
-    if (view.getComputedStyle(a[i]).display.startsWith('inline') && a[i].tagName !== 'SPAN' && a[i].tagName !== 'A') {
-      b[i].setAttribute('data-threet-inline', '');
-      b[i].querySelectorAll('*').forEach((x) => x.setAttribute('data-threet-inline', ''));
-    }
-  }
-}
-
-/** innerText-like extraction that also works in jsdom (no layout). */
-export function textOf(el: Element): string {
-  let out = '';
-  const walk = (n: Node) => {
-    if (n.nodeType === 3) {
-      out += n.nodeValue ?? '';
-      return;
-    }
-    if (n.nodeType !== 1) return;
-    const e = n as Element;
-    const tag = e.tagName;
-    if (tag === 'BR') {
-      out += '\n';
-      return;
-    }
-    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'svg' || tag === 'SVG') return;
-    if (tag === 'IMG') {
-      // Threads renders some emoji as <img alt="😀">.
-      const alt = e.getAttribute('alt') ?? '';
-      if ([...alt].length <= 2) out += alt;
-      return;
-    }
-    // Threads renders inline chips (links, mentions) as <div style=display:inline-*>.
-    const block = BLOCK.has(tag) && !e.hasAttribute('data-threet-inline');
-    if (block && out && !out.endsWith('\n')) out += '\n';
-    e.childNodes.forEach(walk);
-    if (block && out && !out.endsWith('\n')) out += '\n';
-  };
-  walk(el);
-  return out
-    .replace(/ /g, ' ')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
 function precedes(a: Node, b: Node): boolean {
   return !!(a.compareDocumentPosition(b) & 4 /* DOCUMENT_POSITION_FOLLOWING */);
-}
-
-function largestFromSrcset(srcset: string | null): string | undefined {
-  if (!srcset) return undefined;
-  let best: { url: string; w: number } | undefined;
-  for (const part of srcset.split(',')) {
-    const [url, size] = part.trim().split(/\s+/);
-    const w = parseInt(size ?? '', 10) || 0;
-    if (url && (!best || w > best.w)) best = { url, w };
-  }
-  return best?.url;
 }
 
 /** Video thumbnails are <img width="100%" height="100%"> stacked under the <video>. */
 function isVideoPoster(img: HTMLImageElement): boolean {
   return (img.getAttribute('width') ?? '').endsWith('%') || (img.getAttribute('height') ?? '').endsWith('%');
-}
-
-/**
- * Live <video> elements by media key. Threads streams video through MediaSource (blob: URLs),
- * which can't be reused, but a live element can be mirrored with captureStream().
- */
-const videoEls = new Map<string, WeakRef<HTMLVideoElement>>();
-
-export function videoFor(vkey: string): HTMLVideoElement | null {
-  const el = videoEls.get(vkey)?.deref();
-  return el?.isConnected ? el : null;
-}
-
-/** Frames grabbed from playing videos, used as their poster once Threads drops the poster image. */
-const frames = new WeakMap<HTMLVideoElement, string>();
-
-function frameOf(v: HTMLVideoElement): string | undefined {
-  const done = frames.get(v);
-  if (done) return done;
-  if (v.readyState < 2 || !v.videoWidth) return undefined;
-  try {
-    const scale = Math.min(1, 480 / v.videoWidth);
-    const c = v.ownerDocument.createElement('canvas');
-    c.width = Math.round(v.videoWidth * scale);
-    c.height = Math.round(v.videoHeight * scale);
-    c.getContext('2d')!.drawImage(v, 0, 0, c.width, c.height);
-    const url = c.toDataURL('image/jpeg', 0.7);
-    frames.set(v, url);
-    return url;
-  } catch {
-    return undefined; // tainted canvas: no poster
-  }
 }
 
 function posterFor(video: Element): string | undefined {
@@ -352,7 +252,7 @@ export function parsePost(root: Element): Post | null {
     if (quotedRoot?.contains(v)) continue;
     const src = v.getAttribute('src') || v.querySelector('source')?.getAttribute('src') || '';
     const vkey = `${ref.code}:v${vn++}`;
-    videoEls.set(vkey, new WeakRef(v));
+    registerVideo(vkey, v);
     // src is a page-local blob: URL; previews use the poster image, or a frame once it plays.
     media.push({ kind: 'video', src, full: v.getAttribute('poster') || posterFor(v) || frameOf(v), vkey });
   }

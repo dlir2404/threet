@@ -31,6 +31,7 @@ export function installKeys(host: HTMLElement) {
 
     let handled = true;
     const k = e.key;
+    actions.userActivity();
     if (k === 'Escape') {
       if (!actions.closeOverlays()) actions.toggleBoss();
     } else if (s.boss && !(k.startsWith('Arrow') || k === 'Tab' || k.startsWith('Page'))) {

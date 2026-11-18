@@ -1,4 +1,4 @@
-import { parseThread } from './parser';
+import { site } from './site';
 import { routeOf, store } from './store';
 import { log } from './log';
 
@@ -135,7 +135,7 @@ export function scanFrame(f: Frame | string) {
   if (!fr) return;
   const doc = fr.el.contentDocument;
   if (!doc?.body) return;
-  const rows = parseThread(doc, fr.code);
+  const rows = site().parseThread(doc, fr.code);
   if (!rows.length) return;
   if (!fr.ok) {
     fr.ok = true;

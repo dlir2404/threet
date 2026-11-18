@@ -1,12 +1,14 @@
 import type { Media } from '../shared/types';
 import * as driver from './driver';
-import { buildModel, cellFull, POST_COLUMNS, type SheetModel } from './sheet';
+import { buildModel, cellFull, prefKey, textColumn, type SheetModel } from './sheet';
+import { site } from './site';
 import { DEFAULT_SETTINGS, store, type Sel, type Settings } from './store';
 
-const DEFAULT_SEL: Sel = { r: 1, c: 4 };
+/** First post row, main text column. */
+const defaultSel = (): Sel => ({ r: 1, c: textColumn() });
 
 export function currentSel(): Sel {
-  return store.state.sel[store.state.boss ? '__boss' : store.state.active] ?? DEFAULT_SEL;
+  return store.state.sel[store.state.boss ? '__boss' : store.state.active] ?? defaultSel();
 }
 
 function selKey() {
@@ -64,12 +66,12 @@ export const actions = {
       return;
     }
     const tab = store.state.tabs.find((t) => t.id === store.state.active);
-    if (tab?.kind === 'thread' && tab.code === row.post.code) {
-      // Already viewing this thread; F2-style reader instead.
+    // Already on that page (the focal post, or a forum post of the thread being read): read it in place.
+    if ((tab?.kind === 'thread' && tab.code === row.post.code) || site().postRoute(row.post.path)?.path === store.state.active) {
       actions.toggleReader();
       return;
     }
-    driver.openThread(row.post.path, row.post.author);
+    driver.openThread(row.post.path, row.post);
   },
 
   back() {
@@ -110,17 +112,20 @@ export const actions = {
     store.set({ editingHeader: undefined });
     actions.focusGrid();
     if (i == null || value == null) return;
-    const col = POST_COLUMNS[i];
+    const col = site().columns[i];
     if (!col) return;
     const titles = { ...(store.state.settings.colTitles ?? {}) };
     const v = value.trim();
-    if (!v || v === col.header) delete titles[col.key];
-    else titles[col.key] = v;
+    if (!v || v === col.header) delete titles[prefKey(col.key)];
+    else titles[prefKey(col.key)] = v;
     actions.saveSettings({ colTitles: titles });
   },
 
+  /** Reset this site's column titles (other sites keep theirs). */
   resetHeaders() {
-    actions.saveSettings({ colTitles: {} });
+    const mine = `${site().id}.`;
+    const titles = Object.fromEntries(Object.entries(store.state.settings.colTitles ?? {}).filter(([k]) => !k.startsWith(mine)));
+    actions.saveSettings({ colTitles: titles });
   },
 
   /** Drop what this sheet has loaded and start again from the top of the real page. */
@@ -129,8 +134,8 @@ export const actions = {
     if (!tab || store.state.boss) return;
     store.set((s) =>
       tab.kind === 'list'
-        ? { lists: { ...s.lists, [tab.id]: { keys: [], groups: {} } }, sel: { ...s.sel, [tab.id]: DEFAULT_SEL } }
-        : { threads: { ...s.threads, [tab.code!]: [] }, sel: { ...s.sel, [tab.id]: DEFAULT_SEL } },
+        ? { lists: { ...s.lists, [tab.id]: { keys: [], groups: {} } }, sel: { ...s.sel, [tab.id]: defaultSel() } }
+        : { threads: { ...s.threads, [tab.code!]: [] }, sel: { ...s.sel, [tab.id]: defaultSel() } },
     );
     driver.refresh();
   },
@@ -148,8 +153,8 @@ export const actions = {
   openMedia(media: Media[], index = 0, code?: string) {
     // Videos are mirrored from the page's live <video> (ui/Video.tsx); src is their poster.
     const items = media
-      .map((m) => ({ src: m.kind === 'video' ? m.full ?? '' : m.full || m.src, alt: m.alt, video: m.kind === 'video', vkey: m.vkey, code }))
-      .filter((it) => it.src || (it.vkey && it.code));
+      .map((m) => ({ src: m.kind === 'video' ? m.full ?? '' : m.full || m.src, alt: m.alt, video: m.kind === 'video', play: m.play, vkey: m.vkey, code }))
+      .filter((it) => it.src || it.play || (it.vkey && it.code));
     if (items.length) store.set({ lightbox: { items, index: Math.min(index, items.length - 1) } });
   },
 
@@ -230,7 +235,11 @@ export const actions = {
   },
 
   setColWidth(key: string, w: number) {
-    actions.saveSettings({ colWidths: { ...store.state.settings.colWidths, [key]: Math.max(24, Math.round(w)) } });
+    actions.saveSettings({ colWidths: { ...store.state.settings.colWidths, [prefKey(key)]: Math.max(24, Math.round(w)) } });
+  },
+
+  userActivity() {
+    driver.userActivity();
   },
 
   loadMore(auto = false) {

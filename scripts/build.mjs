@@ -51,18 +51,21 @@ function copyIcons() {
   for (const s of ICON_SIZES) copyFileSync(join(root, 'assets/icons', `icon-${s}.png`), join(out, 'icons', `icon-${s}.png`));
 }
 
+// Supported sites and their domains: shared with the extension code (src/sites/hosts.json).
+const SITES = JSON.parse(readFileSync(join(root, 'src/sites/hosts.json'), 'utf8'));
+
 function manifest() {
-  const matches = ['*://*.threads.com/*', '*://*.threads.net/*'];
+  const matches = Object.values(SITES).flatMap((s) => s.domains.map((d) => `*://*.${d}/*`));
   const m = {
     manifest_version: 3,
     name: dev ? 'threet (dev)' : 'threet',
     version: pkg.version,
     description: pkg.description,
     permissions: ['storage', 'declarativeNetRequestWithHostAccess', ...(dev ? ['debugger', 'tabs', 'alarms'] : [])],
-    // Thread sheets load the thread in a hidden same-origin iframe (see src/content/frames.ts).
-    // Threads refuses to be framed (X-Frame-Options: DENY, and the server answers
-    // Sec-Fetch-Dest: iframe with an error page), so for sub-frames that threads.com itself opens
-    // we drop the header and present the request as a document. Other sites still can't frame it.
+    // Detail sheets load the page in a hidden same-origin iframe (see src/content/frames.ts).
+    // Sites like Threads refuse to be framed (X-Frame-Options: DENY, and Threads answers
+    // Sec-Fetch-Dest: iframe with an error page), so for sub-frames a supported site opens on
+    // itself we drop the header and present the request as a document. Other sites still can't frame it.
     declarative_net_request: { rule_resources: [{ id: 'self_frame', enabled: true, path: 'rules.json' }] },
     host_permissions: matches,
     background: { service_worker: 'background.js' },
@@ -72,20 +75,19 @@ function manifest() {
     web_accessible_resources: [{ resources: ['fonts/*'], matches }],
   };
   writeFileSync(join(out, 'manifest.json'), JSON.stringify(m, null, 2));
-  const rules = [{
-    id: 1,
-    priority: 1,
-    action: {
-      type: 'modifyHeaders',
-      responseHeaders: [{ header: 'x-frame-options', operation: 'remove' }],
-      requestHeaders: [{ header: 'sec-fetch-dest', operation: 'set', value: 'document' }],
-    },
-    condition: {
-      requestDomains: ['threads.com', 'threads.net'],
-      initiatorDomains: ['threads.com', 'threads.net'],
-      resourceTypes: ['sub_frame'],
-    },
-  }];
+  // One rule per site that opens its own detail pages in iframes (sites/<id> with selfFrame).
+  const rules = Object.values(SITES)
+    .filter((s) => s.selfFrame)
+    .map((s, i) => ({
+      id: i + 1,
+      priority: 1,
+      action: {
+        type: 'modifyHeaders',
+        responseHeaders: [{ header: 'x-frame-options', operation: 'remove' }],
+        requestHeaders: [{ header: 'sec-fetch-dest', operation: 'set', value: 'document' }],
+      },
+      condition: { requestDomains: s.domains, initiatorDomains: s.domains, resourceTypes: ['sub_frame'] },
+    }));
   writeFileSync(join(out, 'rules.json'), JSON.stringify(rules, null, 2));
 }
 

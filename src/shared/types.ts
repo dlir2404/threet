@@ -6,16 +6,14 @@ export interface Media {
   alt?: string;
   width?: number;
   height?: number;
+  /** Videos: directly playable URL (an mp4 the site exposes), when there is one. */
+  play?: string;
   /** Videos: key of the live <video> on the page (see videoFor() in parser), e.g. "DfzRL8_H6bw:v0". */
   vkey?: string;
 }
 
-export interface Counts {
-  like: string;
-  reply: string;
-  repost: string;
-  share: string;
-}
+/** Engagement numbers as the site shows them ("14K", "2,3K"), keyed by metric (like, reply…). */
+export type Counts = Record<string, string>;
 
 export interface Post {
   /** Threads shortcode, e.g. "DfzRL8_H6bw". Unique key. */
@@ -23,6 +21,10 @@ export interface Post {
   /** Permalink path, e.g. "/@dankhoia/post/DfzRL8_H6bw". */
   path: string;
   author: string;
+  /** Post number as the site shows it ("#5" on forums); used as the row's No. */
+  ordinal?: string;
+  /** Headline, for sites whose posts have one (Reddit, forum threads). */
+  title?: string;
   avatar?: string;
   topic?: string;
   /** ISO timestamp from <time datetime>. */

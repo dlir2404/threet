@@ -107,3 +107,13 @@ export function VideoMirror({ vkey, code, poster, compact }: { vkey: string; cod
     </div>
   );
 }
+
+/** A video the site serves as a plain file (e.g. Reddit's mp4s): native player, muted by default. */
+export function DirectVideo({ src, poster, compact }: { src: string; poster?: string; compact?: boolean }) {
+  const stop = (e: Event) => e.stopPropagation();
+  return (
+    <div class={`vm ${compact ? 'compact' : ''}`} onClick={stop} onMouseDown={stop}>
+      <video src={src} poster={poster} controls muted autoPlay playsInline preload="metadata" />
+    </div>
+  );
+}

@@ -1,4 +1,6 @@
-import { CONTAINER_SEL, findList, indexItems, parseGroups, parsePostPath, parseThread, videoFor } from './parser';
+import type { Post } from '../shared/types';
+import { videoFor } from './media';
+import { site } from './site';
 import { routeOf, store, tabTitle, type Route } from './store';
 import { log } from './log';
 import { hardNavigate } from './cache';
@@ -72,26 +74,30 @@ const itemIndex = new Map<string, Map<string, number>>();
 
 export function scan() {
   const route = routeOf(location.pathname);
-  const list = findList(document);
+  // The pager is only in the DOM once the page has been parsed (scan also runs at document_start).
+  if (site().mode === 'pages' && document.readyState !== 'loading' && !pageNext.has(route.path)) {
+    pageNext.set(route.path, site().nextPage?.(document) ?? null);
+  }
+  const list = site().findList(document);
   if (list) {
     const m = itemIndex.get(route.path) ?? new Map<string, number>();
-    for (const [code, idx] of indexItems(list)) m.set(code, idx);
+    for (const [code, idx] of site().indexItems(list)) m.set(code, idx);
     itemIndex.set(route.path, m);
   }
   if (route.kind === 'feed' || route.kind === 'profile') {
-    const groups = parseGroups(document, list);
+    const groups = site().parseGroups(document, list);
     store.mergeList(route.path, groups);
   } else if (route.kind === 'thread' && route.code) {
-    const rows = parseThread(document, route.code);
+    const rows = site().parseThread(document, route.code);
     store.applyThread(route, rows);
   }
-  if (!store.state.ready && document.querySelector(CONTAINER_SEL)) store.set({ ready: true });
+  if (!store.state.ready && document.querySelector(site().postSelector)) store.set({ ready: true });
 }
 
 /** Nearest scrollable ancestor of the post list, or the document scroller (of `doc`). */
 export function findScroller(doc: Document = document): HTMLElement {
   const view = doc.defaultView ?? window;
-  const list = findList(doc);
+  const list = site().findList(doc);
   for (let el = list?.parentElement ?? null; el && el !== doc.body; el = el.parentElement) {
     const oy = view.getComputedStyle(el).overflowY;
     if ((oy === 'auto' || oy === 'scroll' || oy === 'overlay') && el.scrollHeight > el.clientHeight + 4) return el;
@@ -124,8 +130,20 @@ function activeSource(): Source | null {
   return { doc: document, scan, stale: () => routeOf(location.pathname).path !== active, count: storedCount };
 }
 
+/**
+ * Automatic loads (scrolled near the end) in a row since the user last scrolled or pressed a key.
+ * Capped so a sheet that stays "near the end" (fast sites, tall screens) can't load forever.
+ */
+let autoStreak = 0;
+const MAX_AUTO_STREAK = 3;
+
+/** The user moved (scroll, keys): allow another short run of automatic loads. */
+export function userActivity() {
+  autoStreak = 0;
+}
+
 export function autoLoadAllowed() {
-  return Date.now() >= nextAutoAt;
+  return Date.now() >= nextAutoAt && autoStreak < MAX_AUTO_STREAK;
 }
 
 const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
@@ -145,13 +163,22 @@ function storedCount(): number {
 export async function loadMore(auto = false) {
   if (store.state.loading) return;
   if (auto && !autoLoadAllowed()) return;
+  if (auto) autoStreak++;
+  else autoStreak = 0;
+  if (site().mode === 'pages') {
+    const id = store.state.active;
+    const next = pageNext.get(id);
+    if (next) await loadPage(id, next);
+    return;
+  }
   const src = activeSource();
   if (!src) return;
   // A thread whose post has no replies has nothing more to load.
   const route = routeOf(store.state.active);
   if (route.kind === 'thread' && route.code) {
     const focal = store.state.threads[route.code]?.find((r) => r.focal)?.post;
-    if (focal && !focal.counts.reply && store.state.threads[route.code].length <= 2) return;
+    const replies = site().replyMetric;
+    if (focal && replies && !focal.counts[replies] && store.state.threads[route.code].length <= 2) return;
   }
   const { scan, stale } = src;
   const sc = findScroller(src.doc);
@@ -234,7 +261,7 @@ async function navigateFresh(path: string) {
   const idx = code ? itemIndex.get(routeOf(location.pathname).path)?.get(code) : undefined;
   if (!a && idx != null) {
     how = 'reveal';
-    findList(document)?.children[idx]?.scrollIntoView({ block: 'center' });
+    site().findList(document)?.children[idx]?.scrollIntoView({ block: 'center' });
     for (let t = 0; t < 20 && !a; t++) {
       await sleep(100);
       a = findAnchor(path);
@@ -258,7 +285,7 @@ async function navigateFresh(path: string) {
 
 /** pushState + popstate: Threads' router follows it for pages it already has (verified for the home feed). */
 function spaNavigate(path: string) {
-  const visible = () => Array.from(document.querySelectorAll(CONTAINER_SEL)).filter((c) => c.getBoundingClientRect().width > 0);
+  const visible = () => Array.from(document.querySelectorAll(site().postSelector)).filter((c) => c.getBoundingClientRect().width > 0);
   const before = new Set(visible());
   history.pushState(history.state, '', path);
   window.dispatchEvent(new PopStateEvent('popstate', { state: history.state }));
@@ -279,16 +306,19 @@ export function openPath(path: string, title?: string) {
 }
 
 /** Open a thread / sub-thread as a sheet backed by its own iframe; the page underneath stays put. */
-export function openThread(postPath: string, author?: string) {
-  const ref = parsePostPath(postPath);
-  if (!ref) return;
-  const route: Route = { kind: 'thread', path: `/@${ref.user}/post/${ref.code}`, code: ref.code };
-  store.openTab(route, tabTitle(route, author));
+export function openThread(postPath: string, post?: Post) {
+  const route = site().postRoute(postPath);
+  if (!route) return;
+  store.openTab(route, tabTitle(route, post));
   showSheet(route.path);
 }
 
 /** Make sure whatever backs sheet `id` is live: the page itself, an iframe, or (fallback) navigation. */
 function showSheet(id: string) {
+  if (site().mode === 'pages') {
+    if (!hasData(id)) void loadPage(id);
+    return;
+  }
   if (routeOf(location.pathname).path === id) return;
   if (routeOf(id).kind === 'thread') openFrame(id, () => navigate(id));
   else navigate(id);
@@ -315,8 +345,12 @@ export function activateTab(id: string) {
   showSheet(id);
 }
 
-/** Ask Threads for fresh posts: go to the top and re-trigger the home link. */
+/** Ask the page for fresh posts: go to the top and let the site re-trigger its feed. */
 export function refresh() {
+  if (site().mode === 'pages') {
+    void loadPage(store.state.active);
+    return;
+  }
   const frame = frameFor(store.state.active);
   if (frame) {
     frame.el.contentWindow?.location.reload();
@@ -325,10 +359,7 @@ export function refresh() {
   const sc = findScroller();
   sc.scrollTop = 0;
   const route = routeOf(location.pathname);
-  if (route.kind === 'feed') {
-    const home = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href="/"]'))[0];
-    home?.click();
-  }
+  if (route.kind === 'feed') site().refresh?.(document);
   store.set({ toast: 'Working…' });
   window.setTimeout(() => {
     scan();
@@ -342,7 +373,7 @@ export function refresh() {
  */
 export async function coverage() {
   const route = routeOf(location.pathname);
-  const list = findList(document);
+  const list = site().findList(document);
   if (!list) return { error: 'no list' };
   const sc = findScroller();
   const keep = sc.scrollTop;
@@ -361,7 +392,7 @@ export async function coverage() {
   for (const i of unseen) {
     list.children[i]?.scrollIntoView({ block: 'center' });
     await sleep(250);
-    const fresh = indexItems(list);
+    const fresh = site().indexItems(list);
     const codes = [...fresh].filter(([, idx]) => idx === i).map(([c]) => c);
     if (!codes.length) nonPost.push(i);
     for (const c of codes) if (!stored.has(c)) missing.push({ index: i, code: c });
@@ -384,7 +415,7 @@ export async function liveVideo(vkey: string, code: string): Promise<HTMLVideoEl
   const doc = frame?.el.contentDocument ?? document;
   const pagePath = frame ? active : routeOf(location.pathname).path;
   const idx = itemIndex.get(pagePath)?.get(code);
-  const list = findList(doc);
+  const list = site().findList(doc);
   const target = idx != null ? list?.children[idx] : doc.querySelector(`a[href*="/post/${code}"] time`);
   if (!target) return null;
   target.scrollIntoView({ block: 'center' });
@@ -395,4 +426,50 @@ export async function liveVideo(vkey: string, code: string): Promise<HTMLVideoEl
     el = videoFor(vkey);
   }
   return el;
+}
+
+/*
+ * ---- pages mode (classic paginated sites, e.g. forums) ---------------------------------------
+ * Every sheet is a URL that is fetched and parsed; "load more" fetches the next page. The page
+ * the user has open is never navigated, so nothing here needs iframes or history tricks.
+ */
+
+/** Next page URL per sheet (tab id); null when the last page has been loaded. */
+const pageNext = new Map<string, string | null>();
+
+function hasData(id: string): boolean {
+  const route = routeOf(id);
+  if (route.kind === 'thread' && route.code) return !!store.state.threads[route.code]?.length;
+  return !!store.state.lists[id]?.keys.length;
+}
+
+async function fetchDoc(url: string): Promise<Document> {
+  const r = await fetch(url, { credentials: 'include' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return new DOMParser().parseFromString(await r.text(), 'text/html');
+}
+
+/** Fetch `url` (default: the sheet's own first page) and merge it into sheet `id`. */
+async function loadPage(id: string, url = id) {
+  if (store.state.loading) return;
+  const route = routeOf(id);
+  store.set({ loading: true });
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => store.state.loading && store.set({ toast: 'Working…' }), 900);
+  let grew = false;
+  try {
+    const doc = await fetchDoc(url);
+    if (route.kind === 'thread' && route.code) {
+      const before = store.state.threads[route.code]?.length ?? 0;
+      store.applyThread(route, site().parseThread(doc, route.code));
+      grew = (store.state.threads[route.code]?.length ?? 0) > before;
+    } else {
+      grew = store.mergeList(route.path, site().parseGroups(doc));
+    }
+    pageNext.set(id, site().nextPage?.(doc) ?? null);
+  } catch (e) {
+    log('page load failed', url, String(e));
+  } finally {
+    finishLoading(grew);
+  }
 }

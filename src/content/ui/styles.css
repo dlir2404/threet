@@ -4,6 +4,13 @@
   inset: 0 !important;
   z-index: 2147483647 !important;
   display: block !important;
+  /* Pages may style the host too (Reddit hides every undefined custom element). */
+  visibility: visible !important;
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  clip-path: none !important;
+  pointer-events: auto !important;
   --bg: #f9fbfd;
   --pill: #edf2fa;
   --ink: #1f1f1f;
@@ -119,6 +126,9 @@ input { font: inherit; color: inherit; }
 .grid {
   position: absolute; inset: 0; overflow: scroll; overscroll-behavior: contain; outline: none;
   font-family: var(--cell-font); font-size: 13px; color: #000;
+  /* No scroll anchoring: rows appended above the filler rows must not drag the view down,
+     or "near the bottom" stays true and auto-load never stops. */
+  overflow-anchor: none;
 }
 .grid::-webkit-scrollbar { width: 14px; height: 14px; background: #f8f9fa; }
 .grid::-webkit-scrollbar-thumb { background: #dadce0; border-radius: 8px; border: 3px solid #f8f9fa; }

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { routeOf, store } from '../src/content/store';
+import { setSite } from '../src/content/site';
+import { threads } from '../src/sites/threads';
+
+setSite(threads);
 import { buildModel } from '../src/content/sheet';
 import type { Post, PostGroup } from '../src/shared/types';
 

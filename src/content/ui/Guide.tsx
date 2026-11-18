@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { actions } from '../actions';
+import { site } from '../site';
 import { store, type State } from '../store';
 import { I } from './common';
 
@@ -18,12 +19,12 @@ export const GUIDE: Section[] = [
     body: () => (
       <>
         <p>
-          <b>threet</b> phủ một bảng tính lên trang Threads. Nội dung lấy trực tiếp từ trang Threads thật đang chạy bên dưới,
-          nên bạn vẫn đăng nhập và dùng feed như bình thường, chỉ là nhìn giống đang làm việc.
+          <b>threet</b> phủ một bảng tính lên trang {site().name}. Nội dung lấy trực tiếp từ trang {site().name} thật bên dưới,
+          nên bạn vẫn đăng nhập và đọc như bình thường, chỉ là nhìn giống đang làm việc. Hiện hỗ trợ Threads, Reddit và voz.vn.
         </p>
         <ul>
-          <li>Mỗi <b>hàng</b> là một bài viết. Hàng <b>5.1</b> là trả lời mà Threads hiện ngay dưới bài 5.</li>
-          <li>Mỗi <b>tab sheet</b> ở dưới cùng là một trang: <b>Overview</b> là feed, các tab <b>@tên</b> là thread bạn đã mở.</li>
+          <li>Mỗi <b>hàng</b> là một bài viết. Hàng <b>5.1</b> là trả lời hiện ngay dưới bài 5 (Threads), hay bình luận con của bình luận 5 (khi mở một bài).</li>
+          <li>Mỗi <b>tab sheet</b> ở dưới cùng là một trang: <b>Overview</b> là feed, các tab khác là bài, thread hay chuyên mục bạn đã mở.</li>
           <li>Bấm vào một ô thì <b>thanh công thức</b> (fx) hiện đầy đủ nội dung ô đó.</li>
           <li>Kéo mép tiêu đề cột (A, B, C…) để đổi độ rộng. Bấm vào tên tài liệu để đổi tên, tên này cũng là tiêu đề tab trình duyệt.</li>
           <li><b>Đổi tên cột:</b> double-click ô tiêu đề màu xanh (hàng 1), hoặc chọn nó rồi <K>Enter</K>. Gõ tên mới, <K>Enter</K> để lưu, <K>Esc</K> để huỷ. Xoá trắng là về tên mặc định; Format → Reset column titles để đặt lại tất cả.</li>
@@ -73,7 +74,7 @@ export const GUIDE: Section[] = [
     body: () => (
       <ul>
         <li><b>Boss key</b> <K>Esc</K>: chuyển ngay sang bảng ngân sách “Q4 Budget” với số liệu giả. Bấm <K>Esc</K> lần nữa để quay lại. Trong chế độ này các phím khác bị vô hiệu, bấm nhầm cũng không lộ.</li>
-        <li><b>Tắt / bật hẳn bảng tính</b> <K>⌥T</K> (hoặc bấm icon extension): hiện lại Threads thật, đúng trang đang xem (feed, hoặc chính thread của tab đó). Bấm <K>⌥T</K> lần nữa để quay lại bảng.</li>
+        <li><b>Tắt / bật hẳn bảng tính</b> <K>⌥T</K> (hoặc bấm icon extension): hiện lại trang {site().name} thật, đúng trang đang xem (feed, hoặc chính thread của tab đó). Bấm <K>⌥T</K> lần nữa để quay lại bảng.</li>
         <li>Tab trình duyệt luôn mang tên <b>“tên tài liệu - Google Sheets”</b> và icon Sheets.</li>
         <li><K>p</K> bật/tắt xem trước ảnh khi rê chuột (tắt đi nếu ngồi chỗ đông người).</li>
         <li>Zoom bằng <K>⌘+</K> <K>⌘-</K> hoặc ô <b>100%</b> trên thanh công cụ.</li>

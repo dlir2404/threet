@@ -1,6 +1,6 @@
 import { actions, currentSel } from './actions';
 import * as driver from './driver';
-import { CONTAINER_SEL, findList, parseGroups, parseThread } from './parser';
+import { site } from './site';
 import { buildModel, cellDisplay } from './sheet';
 import { routeOf, store } from './store';
 import { framePaths, frameFor } from './frames';
@@ -28,8 +28,8 @@ function summary() {
     lists: Object.fromEntries(Object.entries(s.lists).map(([k, v]) => [k, v.keys.length])),
     threads: Object.fromEntries(Object.entries(s.threads).map(([k, v]) => [k, v.length])),
     settings: s.settings,
-    realContainers: document.querySelectorAll(CONTAINER_SEL).length,
-    frames: framePaths().map((p) => ({ path: p, ok: frameFor(p)?.ok, inFrame: frameFor(p)?.el.contentDocument?.querySelectorAll(CONTAINER_SEL).length ?? null })),
+    realContainers: document.querySelectorAll(site().postSelector).length,
+    frames: framePaths().map((p) => ({ path: p, ok: frameFor(p)?.ok, inFrame: frameFor(p)?.el.contentDocument?.querySelectorAll(site().postSelector).length ?? null })),
   };
 }
 
@@ -74,13 +74,13 @@ const handlers: Record<string, Handler> = {
   /** Parse the live page right now without touching the store. */
   parse: () => {
     const route = routeOf(location.pathname);
-    if (route.kind === 'thread' && route.code) return { route, rows: parseThread(document, route.code) };
-    return { route, groups: parseGroups(document) };
+    if (route.kind === 'thread' && route.code) return { route, rows: site().parseThread(document, route.code) };
+    return { route, groups: site().parseGroups(document) };
   },
 
   dom: ({ index, limit = 3, max = 12000, list = false } = {}) => {
     if (list) {
-      const l = findList(document);
+      const l = site().findList(document);
       if (!l) return null;
       return {
         listTag: l.tagName,
@@ -88,12 +88,12 @@ const handlers: Record<string, Handler> = {
         childSummary: Array.from(l.children).slice(0, 40).map((c, i) => ({
           i,
           tag: c.tagName,
-          containers: c.querySelectorAll(CONTAINER_SEL).length,
+          containers: c.querySelectorAll(site().postSelector).length,
           text: (c.textContent ?? '').slice(0, 80),
         })),
       };
     }
-    const all = Array.from(document.querySelectorAll(CONTAINER_SEL));
+    const all = Array.from(document.querySelectorAll(site().postSelector));
     const pick = index != null ? [all[index]].filter(Boolean) : all.slice(0, limit);
     return pick.map((el) => cleanHtml(el, max));
   },

@@ -3,7 +3,9 @@ import css from './ui/styles.css';
 import fontsCss from '../../build/fonts.css';
 import { App } from './ui/App';
 import { SHEETS_FAVICON } from './ui/common';
-import { DEFAULT_SETTINGS, store } from './store';
+import { DEFAULT_SETTINGS, store, type Settings } from './store';
+import { setSite } from './site';
+import { siteForHost } from '../sites';
 import { startDriver } from './driver';
 import { installKeys } from './keys';
 import { installDevBridge } from './devbridge';
@@ -83,13 +85,25 @@ function disguiseTab() {
   }
 }
 
+/** Column prefs used to be keyed by column only (Threads was the only site): prefix them. */
+function migrateSettings(saved: Partial<Settings>): Partial<Settings> {
+  const prefix = (o?: Record<string, any>) =>
+    o && Object.fromEntries(Object.entries(o).map(([k, v]) => [k.includes('.') ? k : `threads.${k}`, v]));
+  return { ...saved, colTitles: prefix(saved.colTitles), colWidths: prefix(saved.colWidths) } as Partial<Settings>;
+}
+
 async function main() {
+  const adapter = siteForHost(location.hostname);
+  if (!adapter) return; // not a supported site
+  setSite(adapter);
   const host = mountHost();
   const shadow = host.shadowRoot!;
 
   try {
-    const { settings } = await chrome.storage.local.get('settings');
-    store.set({ settings: { ...DEFAULT_SETTINGS, ...(settings ?? {}) } });
+    const { settings } = (await chrome.storage.local.get('settings')) as { settings?: Partial<Settings> };
+    const merged = { ...DEFAULT_SETTINGS, ...migrateSettings(settings ?? {}) };
+    store.set({ settings: merged });
+    if (settings && JSON.stringify(merged.colTitles) !== JSON.stringify(settings.colTitles ?? {})) chrome.storage.local.set({ settings: merged });
   } catch (e) {
     logError('settings load failed', e);
   }

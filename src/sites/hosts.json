@@ -1,0 +1,24 @@
+{
+  "threads": {
+    "name": "Threads",
+    "domains": [
+      "threads.com",
+      "threads.net"
+    ],
+    "selfFrame": true
+  },
+  "reddit": {
+    "name": "Reddit",
+    "domains": [
+      "reddit.com"
+    ],
+    "selfFrame": false
+  },
+  "voz": {
+    "name": "voz",
+    "domains": [
+      "voz.vn"
+    ],
+    "selfFrame": false
+  }
+}

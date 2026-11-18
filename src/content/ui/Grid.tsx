@@ -4,7 +4,7 @@ import { actions, currentSel, MIN_COLS } from '../actions';
 import { cellDisplay, cellFull, cellNote, chipColor, colLetter, type Column, type SheetModel, type SheetRow } from '../sheet';
 import type { State } from '../store';
 import { I } from './common';
-import { VideoMirror } from './Video';
+import { DirectVideo, VideoMirror } from './Video';
 
 const ROW_HDR = 46;
 const BLANK_W = 100;
@@ -18,26 +18,43 @@ interface Hover {
   top?: number;
   bottom?: number;
   media: Media[];
-  items: { src: string; alt?: string; video: boolean; vkey?: string }[];
+  items: { src: string; alt?: string; video: boolean; play?: string; vkey?: string }[];
   index: number;
   code: string;
 }
-
-/** Grace period so the pointer can travel from the chip into the card. */
-const HOVER_HIDE_MS = 300;
 
 export function Grid({ s, model }: { s: State; model: SheetModel }) {
   const scroller = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<Hover | null>(null);
-  const hideTimer = useRef<number | undefined>(undefined);
-  const keepHover = () => window.clearTimeout(hideTimer.current);
   // Boss key / tab switch: drop the preview at once (it may be playing a video).
   useEffect(() => setHover(null), [s.boss, s.active]);
-  const hideHoverSoon = () => {
-    window.clearTimeout(hideTimer.current);
-    hideTimer.current = window.setTimeout(() => setHover(null), HOVER_HIDE_MS);
-  };
+  /** Where the open card's chip is; the card stays only while the pointer is over it or the card. */
+  const hoverChip = useRef<DOMRect | null>(null);
+  useEffect(() => {
+    if (!hover) return;
+    const inside = (r: DOMRect | null | undefined, x: number, y: number) =>
+      !!r && x >= r.left - 1 && x <= r.right + 1 && y >= r.top - 1 && y <= r.bottom + 1;
+    // Page-wide, so leaving towards the toolbar, headers or another chip all close it — at once.
+    const onMove = (e: MouseEvent) => {
+      const card = scroller.current?.parentElement?.querySelector('.hovercard')?.getBoundingClientRect();
+      const chip = hoverChip.current;
+      const { clientX: x, clientY: y } = e;
+      // The card is flush with the chip; the chip's row across the card's width lets a
+      // diagonal move from the chip reach the card without closing it.
+      const band = chip && card && new DOMRect(Math.min(chip.left, card.left), chip.top, Math.max(chip.right, card.right) - Math.min(chip.left, card.left), chip.height);
+      if (!inside(card, x, y) && !inside(chip, x, y) && !inside(band, x, y)) setHover(null);
+    };
+    const onOut = (e: MouseEvent) => {
+      if (!e.relatedTarget) setHover(null); // left the window
+    };
+    window.addEventListener('mousemove', onMove, true);
+    document.addEventListener('mouseout', onOut, true);
+    return () => {
+      window.removeEventListener('mousemove', onMove, true);
+      document.removeEventListener('mouseout', onOut, true);
+    };
+  }, [hover?.key]);
   const [note, setNote] = useState<{ x: number; y: number; text: string; key: string } | null>(null);
   const [reader, setReader] = useState<{ left: number; top: number; width: number } | null>(null);
   const sel = currentSel();
@@ -149,14 +166,13 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
     } else if (note) setNote(null);
     if (!s.settings.showPreviews || s.boss) return hover && setHover(null);
     const chip = (e.target as HTMLElement).closest<HTMLElement>('.schip');
-    if (!chip) return hover && hideHoverSoon();
-    keepHover();
+    if (!chip) return;
     const hit = cellAt(e);
     const row = hit ? model.rows[hit.r - 1] : undefined;
     const media = row?.post?.media ?? [];
     const items = media
-      .map((x) => ({ src: x.kind === 'video' ? x.full || '' : x.src, alt: x.alt, video: x.kind === 'video', vkey: x.vkey }))
-      .filter((x) => x.src || x.vkey);
+      .map((x) => ({ src: x.kind === 'video' ? x.full || '' : x.src, alt: x.alt, video: x.kind === 'video', play: x.play, vkey: x.vkey }))
+      .filter((x) => x.src || x.play || x.vkey);
     if (!row?.post || !items.length) return;
     const key = `${s.active}:${row.key}`;
     if (hover?.key === key) return;
@@ -167,6 +183,7 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
     // Flush against the chip (no gap); flip above when there isn't room below.
     const below = wrap.bottom - r.bottom, above = r.top - wrap.top;
     const place = below >= 300 || below >= above ? { top: r.bottom - wrap.top } : { bottom: wrap.bottom - r.top };
+    hoverChip.current = r;
     setHover({ key, x, ...place, media, items, index: 0, code: row.post.code });
   };
 
@@ -199,14 +216,13 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
           if (note) setNote(null);
           maybeLoad();
         }}
+        onWheel={() => actions.userActivity()}
+        onPointerDown={() => actions.userActivity()}
         onMouseDown={onMouseDown}
         onDblClick={onDblClick}
         onClick={onClick}
         onMouseMove={onMove}
-        onMouseLeave={() => {
-          if (hover) hideHoverSoon();
-          setNote(null);
-        }}
+        onMouseLeave={() => setNote(null)}
       >
         <div class="sheet" ref={sheet} style={{ width: `${width}px`, zoom }}>
           <div class="colhdr" style={{ width: `${width}px` }}>
@@ -248,8 +264,6 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
       {hover && (
         <HoverCard
           h={hover}
-          onEnter={keepHover}
-          onLeave={hideHoverSoon}
           onIndex={(index) => setHover({ ...hover, index })}
           onOpen={() => {
             setHover(null);
@@ -261,10 +275,8 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
   );
 }
 
-function HoverCard({ h, onEnter, onLeave, onIndex, onOpen }: {
+function HoverCard({ h, onIndex, onOpen }: {
   h: Hover;
-  onEnter: () => void;
-  onLeave: () => void;
   onIndex: (i: number) => void;
   onOpen: () => void;
 }) {
@@ -278,9 +290,11 @@ function HoverCard({ h, onEnter, onLeave, onIndex, onOpen }: {
   if (h.top != null) pos.top = `${h.top}px`;
   if (h.bottom != null) pos.bottom = `${h.bottom}px`;
   return (
-    <div class="hovercard" style={pos} onMouseEnter={onEnter} onMouseLeave={onLeave} onMouseDown={(e) => e.stopPropagation()}>
+    <div class="hovercard" style={pos} onMouseDown={(e) => e.stopPropagation()}>
       <div class="hc-main" title="Open viewer" onClick={onOpen}>
-        {cur.video && cur.vkey ? (
+        {cur.video && cur.play ? (
+          <DirectVideo key={cur.play} src={cur.play} poster={cur.src || undefined} compact />
+        ) : cur.video && cur.vkey ? (
           <VideoMirror key={cur.vkey} vkey={cur.vkey} code={h.code} poster={cur.src || undefined} compact />
         ) : (
           <img src={cur.src} referrerpolicy="origin-when-cross-origin" />

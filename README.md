@@ -4,7 +4,7 @@
 
 # threet
 
-**Read Threads in a Google Sheets disguise: your feed, threads, and replies as rows in a spreadsheet, right on threads.com.**
+**Read Threads, Reddit, and voz.vn in a Google Sheets disguise: feeds, threads, and replies as rows in a spreadsheet, right on the site.**
 
 ![status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![browser: Chrome](https://img.shields.io/badge/browser-Chrome%20(MV3)-lightgrey)
@@ -59,15 +59,25 @@ npm run build          # → dist/
 
 **Build requirements:** For the current build and test toolchain, use Node.js 24.15.0 or later within the 24.x series (CI uses 24.20.0). Node.js 22.22.2 or later within 22.x, and Node.js 26+, are also supported by the installed Vitest and jsdom versions.
 
+## Supported sites
+
+| Site | What becomes rows | Opening a post |
+| --- | --- | --- |
+| [Threads](https://www.threads.com) | Feeds, profiles, saved/liked; surfaced replies and quoted posts | Thread and sub-threads, in a hidden iframe |
+| [Reddit](https://www.reddit.com) | Home, popular, subreddits, user pages: title, subreddit or flair, score, comments | Post with its comment tree (`2.1.1`), in a hidden iframe |
+| [voz.vn](https://voz.vn) | Forum index, sub-forums, and thread lists, with prefix, replies, views | Thread posts with `#n` numbers, quotes, and reactions; pages fetched in the background |
+
+Each site is an adapter under [`src/sites/`](src/sites); its domains live in [`src/sites/hosts.json`](src/sites/hosts.json), which also drives the manifest. threet is read-only on every site: it never posts, votes, or sends anything.
+
 ## Quick start
 
-Open threads.com. The sheet appears immediately (the real page never flashes) and a short guide opens the first time. Then:
+Open threads.com (or a supported site above). The sheet appears immediately (the real page never flashes) and a short guide opens the first time. Then:
 
 - Move with the arrow keys; the formula bar shows the full text of the selected cell. Press **Space** to read a long post inside its cell.
 - Press **Enter** on a post to open its thread as a new sheet tab; **Enter** on a reply opens that sub-thread. **Backspace** closes the tab and goes back.
 - Scroll to the bottom (or press **m**) to load more; **r** fetches new posts.
 - Someone walks by: **Esc** switches to a boring "Q4 Budget" sheet. **Esc** again to come back.
-- **⌥T** (Alt+T) turns the sheet off and shows the real Threads page: the feed, or the thread you were on.
+- **⌥T** (Alt+T) turns the sheet off and shows the real page: the feed, or the thread you were on.
 
 ## Features
 
@@ -114,6 +124,7 @@ Clicking the extension icon also toggles the sheet.
 - **Parser** reads posts from the live DOM without relying on Threads' generated class names: `data-pressable-container`, permalinks with `<time>`, `dir="auto"` text runs, and the like/reply/repost/share button group.
 - **Driver** follows the page's client-side routing, walks the virtualised list to load more, and keeps every post it has seen, even after Threads unmounts it.
 - **Thread sheets** are backed by a same-origin `<iframe>` of the thread page, laid out under the sheet, so opening a thread never navigates the feed underneath. Threads normally refuses to be framed (`X-Frame-Options: DENY`, and an error page for `Sec-Fetch-Dest: iframe`); a [`declarativeNetRequest`](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest) rule lifts that **only for frames that threads.com opens itself**, so other sites still cannot frame Threads. If a frame does not render within 8 seconds, threet falls back to navigating the page.
+- **Other sites.** Reddit thread sheets use the same hidden-iframe approach (Reddit allows same-origin framing, so no header rule is needed). voz.vn is a classic paginated forum, so threet fetches the next page or a thread with your cookies and parses it with `DOMParser`; the real page never navigates.
 - **UI** is Preact in a shadow root, styled after the current Sheets design; icons are Material Symbols and the UI font is Google Sans.
 
 ## Privacy and safety
@@ -146,7 +157,7 @@ npm run typecheck
 - `dist-dev/` includes a debug bridge to the **threet-debug** MCP server (`mcp/server.mjs`, declared in `.mcp.json`), so an agent such as Claude Code can inspect state, read the live DOM, evaluate JS, take screenshots, send input, and reload the extension in your Chrome. It only accepts connections from a `chrome-extension://` origin carrying the token in `.threet-dev-token` (generated, gitignored). `dist/` contains none of it.
 - `node scripts/preview.mjs [saved-page.html] --dist dist-dev` serves a saved Threads page (scripts stripped) with the built overlay for offline checks; `node scripts/smoke-mcp.mjs` smoke-tests the MCP server.
 - Eight parser tests run against a page you save yourself to `test/fixtures/feed-home.html`. Fixtures contain other people's posts, so they are gitignored. On a fresh clone, those eight tests are skipped; the remaining ten tests run without the fixture. Check the skipped count before treating a passing run as full parser coverage.
-- Automated tests currently cover parser helpers, the saved feed fixture, store merging, and sheet row modeling. Navigation, iframe fallback, keyboard interactions, and the UI still need manual checks in Chrome against live Threads. GitHub Actions runs typecheck, tests, and production packaging on pull requests, pushes to `main`, and version tags; the private fixture tests are skipped in CI.
+- Automated tests currently cover parser helpers, the saved feed fixture, the Reddit and voz.vn parsers (synthetic markup), store merging, and sheet row modeling. Navigation, iframe fallback, keyboard interactions, and the UI still need manual checks in Chrome against live Threads. GitHub Actions runs typecheck, tests, and production packaging on pull requests, pushes to `main`, and version tags; the private fixture tests are skipped in CI.
 
 Source layout:
 

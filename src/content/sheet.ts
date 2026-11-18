@@ -1,32 +1,21 @@
 import type { Post } from '../shared/types';
 import type { State } from './store';
+import type { Column } from '../sites/types';
+import { site } from './site';
 import { bossRows, BOSS_COLUMNS } from './boss';
 
-export type CellKind = 'text' | 'num' | 'chip' | 'media' | 'link' | 'header';
+export type CellKind = NonNullable<Column['kind']>;
+export type { Column };
 
-export interface Column {
-  key: string;
-  header: string;
-  width: number;
-  align?: 'left' | 'right' | 'center';
-  kind?: CellKind;
-  /** Wrap and clamp long text instead of clipping to one line. */
-  wrap?: boolean;
+/** Settings key for a per-site column preference (title, width): "threads.text". */
+export function prefKey(colKey: string): string {
+  return `${site().id}.${colKey}`;
 }
 
-export const POST_COLUMNS: Column[] = [
-  { key: 'no', header: 'No', width: 52, align: 'right', kind: 'num' },
-  { key: 'author', header: 'Reporter', width: 140 },
-  { key: 'time', header: 'Updated', width: 118 },
-  { key: 'topic', header: 'Function', width: 128, kind: 'chip' },
-  { key: 'text', header: 'Description', width: 540, wrap: true },
-  { key: 'like', header: 'Votes', width: 68, align: 'right', kind: 'num' },
-  { key: 'reply', header: 'Comments', width: 86, align: 'right', kind: 'num' },
-  { key: 'repost', header: 'Reposts', width: 74, align: 'right', kind: 'num' },
-  { key: 'share', header: 'Shares', width: 68, align: 'right', kind: 'num' },
-  { key: 'media', header: 'Attachment', width: 150, kind: 'media' },
-  { key: 'ref', header: 'Ticket ID', width: 128, kind: 'link' },
-];
+/** Index of the main text column: where the selection lands by default. */
+export function textColumn(): number {
+  return Math.max(0, site().columns.findIndex((c) => c.key === 'text'));
+}
 
 export interface SheetRow {
   key: string;
@@ -68,10 +57,10 @@ export function colLetter(i: number): string {
 export function buildModel(s: State): SheetModel {
   if (s.boss) return { columns: BOSS_COLUMNS, rows: bossRows(), pageable: false };
   const tab = s.tabs.find((t) => t.id === s.active);
-  const columns = POST_COLUMNS.map((c) => ({
+  const columns = site().columns.map((c) => ({
     ...c,
-    width: s.settings.colWidths[c.key] ?? c.width,
-    header: s.settings.colTitles?.[c.key] || c.header,
+    width: s.settings.colWidths[prefKey(c.key)] ?? c.width,
+    header: s.settings.colTitles?.[prefKey(c.key)] || c.header,
   }));
   if (!tab) return { columns, rows: [], pageable: false };
   if (tab.kind === 'list') {
@@ -99,7 +88,7 @@ export function buildModel(s: State): SheetModel {
       for (let d = 0; d < r.depth - 1; d++) counters[d] ??= 1;
       no = `${n}.${counters.slice(0, r.depth).join('.')}`;
     }
-    return withQuote({ key: r.post.code, post: r.post, no, depth: r.depth, tone: r.ancestor ? 'muted' : r.focal ? 'strong' : undefined });
+    return withQuote({ key: r.post.code, post: r.post, no: r.post.ordinal ?? no, depth: r.depth, tone: r.ancestor ? 'muted' : r.focal ? 'strong' : undefined });
   });
   return { columns, rows, pageable: true };
 }
@@ -141,13 +130,9 @@ export function cellDisplay(row: SheetRow, col: Column): string {
       return indent + part + (p.text || (p.media.length ? '(attachment)' : p.quoted ? '' : ''))
         + (p.quoted ? `${p.text ? '\n' : ''}❝ quoting @${p.quoted.author} ↓` : '');
     }
-    case 'like': return p.counts.like;
-    case 'reply': return p.counts.reply;
-    case 'repost': return p.counts.repost;
-    case 'share': return p.counts.share;
     case 'media': return mediaLabel(p);
     case 'ref': return p.code;
-    default: return '';
+    default: return col.metric ? p.counts[col.metric] ?? '' : '';
   }
 }
 

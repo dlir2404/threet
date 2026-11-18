@@ -6,7 +6,7 @@ import { Grid } from './Grid';
 import { TitleBar, Toolbar } from './Chrome';
 import { Guide } from './Guide';
 import { UpdateDialog } from './Update';
-import { VideoMirror } from './Video';
+import { DirectVideo, VideoMirror } from './Video';
 import { I, openMenu, useStore, type MenuItem } from './common';
 
 export function App() {
@@ -57,7 +57,9 @@ function Lightbox({ lb }: { lb: NonNullable<State['lightbox']> }) {
   return (
     <div class="lightbox" onMouseDown={() => store.set({ lightbox: undefined })}>
       <div class="lb-stage" onMouseDown={stop}>
-        {cur.video && cur.vkey && cur.code ? (
+        {cur.video && cur.play ? (
+          <DirectVideo key={cur.play} src={cur.play} poster={cur.src || undefined} />
+        ) : cur.video && cur.vkey && cur.code ? (
           <VideoMirror key={cur.vkey} vkey={cur.vkey} code={cur.code} poster={cur.src || undefined} />
         ) : (
           <img src={cur.src} alt={cur.alt ?? ''} referrerpolicy="origin-when-cross-origin" />

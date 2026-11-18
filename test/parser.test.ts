@@ -2,7 +2,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseGroups, parsePostPath, parseThread, textOf } from '../src/content/parser';
+import { textOf } from '../src/content/dom';
+import { parseGroups, parsePostPath, parseThread } from '../src/sites/threads/parser';
 
 const FEED = resolve(__dirname, 'fixtures/feed-home.html');
 const hasFeed = existsSync(FEED);
