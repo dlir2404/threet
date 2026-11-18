@@ -16,24 +16,9 @@
 
 </div>
 
-```text
-┌ ▦ Q4 Planning - Tracker  ☆ ⇥ ☁                                  H N T +4   ⟲  ▤  ▭▾  [🔒 Share ▾]  D ┐
-│   File  Edit  View  Insert  Format  Data  Tools  Extensions  Help                                     │
-│ ( ⌕ ↶ ↷ ⎙ ⌁ 100%▾ │ $ % .0 .00 123▾ │ Arial ▾ │ − 10 + │ B I S A │ ◧ ▦ ⊞ │ ≡ ⊥ ↵ ⟳ │ ⛓ ⊕ ▥ ⊽ Σ )  │
-│ E3  ▾ │ fx  Every Monday I write down the three things that would make the week a win…               │
-├───┬─────┬──────────────┬──────────────┬──────────────┬─────────────────────────────┬───────┬────────┤
-│   │  A  │      B       │      C       │      D       │              E              │   F   │   G    │
-│ 1 │ No  │   Reporter   │   Updated    │   Function   │         Description         │ Votes │Comments│
-│ 2 │   1 │ maya.codes   │ 16/11 18:39  │ (Design ▾)   │ Shipped the new onboarding… │   14K │    262 │
-│ 3 │   2 │ ben_writes   │ 16/11 23:45  │              │ [1/2] Every Monday I write… │  1,2K │      9 │
-│ 4 │   3 │ ana.k        │ 15/11 15:36  │ (Jobs ▾)     │ Interviewers who skip th… ❝↓│  1,3K │     34 │
-│ 5 │ 3.q │ leo_dev      │ 14/11 16:21  │ (Jobs ▾)     │ ❝ Why did you leave your…   │  1,5K │     17 │
-│ 6 │ 3.1 │ sam.hr       │ 16/11 17:43  │              │ ↳ Same here, I never ask… ◥ │     2 │        │
-├───┴─────┴──────────────┴──────────────┴──────────────┴─────────────────────────────┴───────┴────────┤
-│  +  ≡   [ Overview ▾ ]   @ben_writes ▾                                                Count: 7  ‹ ›  │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────┘
-  Enter open thread · Backspace back · Space read cell · Esc boss key · ⌥T show Threads · F1 guide
-```
+<p align="center">
+  <img src="assets/screenshots/sheet.png" alt="threet showing a Threads feed as rows in a Google Sheets–style spreadsheet" width="900">
+</p>
 
 ## About
 
