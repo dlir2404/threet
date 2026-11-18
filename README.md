@@ -8,7 +8,7 @@
 
 ![status: alpha](https://img.shields.io/badge/status-alpha-orange)
 ![browser: Chrome](https://img.shields.io/badge/browser-Chrome%20(MV3)-lightgrey)
-![runs on: threads.com](https://img.shields.io/badge/runs%20on-threads.com-black)
+![runs on: threads.com · reddit.com · voz.vn](https://img.shields.io/badge/runs%20on-threads.com%20%C2%B7%20reddit.com%20%C2%B7%20voz.vn-black)
 [![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/dlir2404)
 
@@ -36,9 +36,9 @@ threet is not on the Chrome Web Store yet. Install the prebuilt extension from [
 2. Extract the ZIP into a folder you will keep. It contains `manifest.json`, the extension code, fonts, and licenses.
 3. Open `chrome://extensions` and turn on **Developer mode**.
 4. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
-5. Open [threads.com](https://www.threads.com) and log in as usual.
+5. Open [threads.com](https://www.threads.com), [reddit.com](https://www.reddit.com), or [voz.vn](https://voz.vn) as usual.
 
-Keep that folder after installation: Chrome loads the extension from it. To update, replace its contents with the new release's files, click **Reload** on the extension in `chrome://extensions`, and reload your Threads tabs. Unpacked extensions can't update themselves, so threet checks GitHub Releases once a day and shows a dialog with the download link and these steps when a new version is out.
+Keep that folder after installation: Chrome loads the extension from it. To update, replace its contents with the new release's files, click **Reload** on the extension in `chrome://extensions`, and reload your Threads, Reddit, and voz tabs. Unpacked extensions can't update themselves, so threet checks GitHub Releases once a day and shows a dialog with the download link and these steps when a new version is out.
 
 **Browser:** Chrome (or another Chromium browser with Manifest V3).
 
@@ -55,7 +55,7 @@ npm run build          # → dist/
 
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. **Load unpacked** → choose the `dist/` folder.
-3. Open [threads.com](https://www.threads.com) and log in as usual.
+3. Open [threads.com](https://www.threads.com), [reddit.com](https://www.reddit.com), or [voz.vn](https://voz.vn) as usual.
 
 **Build requirements:** For the current build and test toolchain, use Node.js 24.15.0 or later within the 24.x series (CI uses 24.20.0). Node.js 22.22.2 or later within 22.x, and Node.js 26+, are also supported by the installed Vitest and jsdom versions.
 
@@ -131,11 +131,11 @@ Clicking the extension icon also toggles the sheet.
 
 ## Privacy and safety
 
-- **Local processing and network requests.** threet has no backend or analytics service; it parses and displays posts locally. Opening thread sheets loads real Threads pages in iframes, scrolling can trigger Threads to fetch more posts, and media previews load images from their source URLs. These requests use the normal Threads pages and media hosts. Fonts and icons are bundled with the extension.
+- **Local processing and network requests.** threet has no backend or analytics service; it parses and displays posts locally. Opening thread sheets loads real Threads or Reddit pages in iframes, scrolling can trigger the site to fetch more posts, and media previews load images from their source URLs. On voz.vn, pages are fetched from voz.vn itself, and the find bar's search submits voz's own search form in a hidden frame. These requests go only to the site you are on and its media hosts. Fonts and icons are bundled with the extension.
 - **Update check.** At most once a day (hourly retry after a failure), the extension's background makes one anonymous GET to `api.github.com/repos/dlir2404/threet/releases/latest`, falling back to `data.jsdelivr.com` when GitHub's API is unreachable. Nothing about you or your feed is sent. When a newer release exists, a dialog offers the download (Remind later = 24 h, or Skip this version). Turn it off in **Help → Tự kiểm tra cập nhật hằng ngày**.
-- **Storage.** Settings (doc title, column titles and widths, zoom) are kept in `chrome.storage.local`. Read rows, open sheet tabs, and selections are kept in memory and saved to the tab's `sessionStorage` after relevant state changes (with an 800 ms debounce). The snapshot is restored only when threet triggers a full page navigation and leaves a marker less than 20 seconds old; an ordinary reload starts fresh and clears the snapshot. This cache belongs to the Threads page's origin, so it is accessible to that page's scripts.
-- **Permissions.** `storage`, host access to `threads.com` / `threads.net`, and `declarativeNetRequestWithHostAccess` for the framing rule above. The release build has no `debugger` permission and no debug code.
-- **Read-only.** threet does not like, post, follow, or reply on your behalf.
+- **Storage.** Settings (doc title, column titles and widths, zoom) are kept in `chrome.storage.local`. Read rows, open sheet tabs, and selections are kept in memory and saved to the tab's `sessionStorage` after relevant state changes (with an 800 ms debounce). The snapshot is restored only when threet triggers a full page navigation and leaves a marker less than 20 seconds old; an ordinary reload starts fresh and clears the snapshot. This cache belongs to the site's origin, so it is accessible to that page's scripts.
+- **Permissions.** `storage`, host access to `threads.com` / `threads.net`, `reddit.com`, and `voz.vn`, and `declarativeNetRequestWithHostAccess` for the framing rule above. The release build has no `debugger` permission and no debug code.
+- **Read-only.** threet does not like, vote, post, follow, or reply on your behalf. The only form it sends is voz's search, when you ask for it.
 - **Use it responsibly.** It is a personal reading tool. Respect Threads' terms and your workplace's rules; it may break whenever Threads changes its page.
 
 ## Roadmap
