@@ -100,6 +100,9 @@ const handlers: Record<string, Handler> = {
 
   coverage: () => driver.coverage(),
 
+  /** chrome.storage.local, or one key of it. */
+  storage: ({ key }: { key?: string } = {}) => chrome.storage.local.get(key ?? null),
+
   scroller: () => {
     const sc = driver.findScroller();
     return { tag: sc.tagName, scrollTop: sc.scrollTop, scrollHeight: sc.scrollHeight, clientHeight: sc.clientHeight, isDocument: sc === document.scrollingElement };

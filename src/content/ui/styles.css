@@ -356,3 +356,20 @@ table.cols .tri { display: inline-block; width: 0; height: 0; border-left: 7px s
 .lb-noimg { display: block; width: 100%; height: 100%; background: #3c4043; }
 .hc-thumb { position: relative; }
 .hc-thumb svg { position: absolute; right: 1px; bottom: 1px; width: 14px; height: 14px; color: #fff; filter: drop-shadow(0 0 2px rgba(0,0,0,.6)); }
+
+/* update available */
+.menubar .mi { position: relative; }
+.mi-dot { position: absolute; top: 3px; right: 1px; width: 6px; height: 6px; border-radius: 50%; background: #1a73e8; }
+.dialog.update { height: auto; max-height: calc(100% - 48px); width: 600px; }
+.dialog.update .g-content { padding-right: 4px; }
+.up-ver { font-size: 15px; }
+.up-title { font-weight: 500; font-size: 14px; color: var(--ink); margin: 14px 0 6px; }
+.up-notes { background: #f1f4f9; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 20px; max-height: 180px; overflow-y: auto; }
+.up-steps { margin: 0; padding-left: 20px; font-size: 14px; line-height: 21px; }
+.up-steps li { margin-bottom: 6px; }
+.up-steps code, .up-ver code { font: 12px ui-monospace, Menlo, monospace; background: #f1f3f4; padding: 1px 4px; border-radius: 3px; }
+.up-link { color: #0b57d0 !important; font-weight: 400 !important; padding: 0 !important; font-size: 12px; }
+.up-link:hover { text-decoration: underline; background: none !important; }
+.up-actions { display: flex; gap: 8px; }
+.dialog .foot .up-actions .primary { background: #0b57d0; color: #fff; padding: 8px 20px; }
+.dialog .foot .up-actions .primary:hover { background: #0842a0; }

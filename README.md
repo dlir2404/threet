@@ -53,7 +53,7 @@ threet is not on the Chrome Web Store yet. Install the prebuilt extension from [
 4. Click **Load unpacked** and select the extracted folder containing `manifest.json`.
 5. Open [threads.com](https://www.threads.com) and log in as usual.
 
-Keep that folder after installation: Chrome loads the extension from it. To update, replace its contents with the new release's files, click **Reload** on the extension in `chrome://extensions`, and reload your Threads tabs. Updates are manual for unpacked extensions.
+Keep that folder after installation: Chrome loads the extension from it. To update, replace its contents with the new release's files, click **Reload** on the extension in `chrome://extensions`, and reload your Threads tabs. Unpacked extensions can't update themselves, so threet checks GitHub Releases once a day and shows a dialog with the download link and these steps when a new version is out.
 
 **Browser:** Chrome (or another Chromium browser with Manifest V3).
 
@@ -134,6 +134,7 @@ Clicking the extension icon also toggles the sheet.
 ## Privacy and safety
 
 - **Local processing and network requests.** threet has no backend or analytics service; it parses and displays posts locally. Opening thread sheets loads real Threads pages in iframes, scrolling can trigger Threads to fetch more posts, and media previews load images from their source URLs. These requests use the normal Threads pages and media hosts. Fonts and icons are bundled with the extension.
+- **Update check.** At most once a day (hourly retry after a failure), the extension's background makes one anonymous GET to `api.github.com/repos/dlir2404/threet/releases/latest`, falling back to `data.jsdelivr.com` when GitHub's API is unreachable. Nothing about you or your feed is sent. When a newer release exists, a dialog offers the download (Remind later = 24 h, or Skip this version). Turn it off in **Help → Tự kiểm tra cập nhật hằng ngày**.
 - **Storage.** Settings (doc title, column titles and widths, zoom) are kept in `chrome.storage.local`. Read rows, open sheet tabs, and selections are kept in memory and saved to the tab's `sessionStorage` after relevant state changes (with an 800 ms debounce). The snapshot is restored only when threet triggers a full page navigation and leaves a marker less than 20 seconds old; an ordinary reload starts fresh and clears the snapshot. This cache belongs to the Threads page's origin, so it is accessible to that page's scripts.
 - **Permissions.** `storage`, host access to `threads.com` / `threads.net`, and `declarativeNetRequestWithHostAccess` for the framing rule above. The release build has no `debugger` permission and no debug code.
 - **Read-only.** threet does not like, post, follow, or reply on your behalf.

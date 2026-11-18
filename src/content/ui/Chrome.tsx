@@ -35,7 +35,9 @@ function menus(s: State): Record<string, MenuItem[]> {
       { label: 'Show original (threet off)', shortcut: '⌥T', action: () => actions.toggleVisible() },
       { label: 'Load more rows', shortcut: 'M', action: () => actions.loadMore() },
     ],
-    Help: [dummy('Search the menus', '⌥/'), SEP, dummy('Help'), dummy('Training'), dummy('Updates'), SEP, dummy('Help Sheets improve'), SEP, dummy('Privacy Policy'), dummy('Terms of Service'), SEP, dummy('Function list'), { label: 'Keyboard shortcuts', shortcut: '⌘/', icon: 'keyboard', action: () => actions.toggleHelp() }, SEP, { label: 'Hướng dẫn threet', shortcut: 'F1', action: () => actions.toggleHelp() }],
+    Help: [dummy('Search the menus', '⌥/'), SEP, dummy('Help'), dummy('Training'), dummy('Updates'), SEP, dummy('Help Sheets improve'), SEP, dummy('Privacy Policy'), dummy('Terms of Service'), SEP, dummy('Function list'), { label: 'Keyboard shortcuts', shortcut: '⌘/', icon: 'keyboard', action: () => actions.toggleHelp() }, SEP, { label: 'Hướng dẫn threet', shortcut: 'F1', action: () => actions.toggleHelp() },
+      ...(s.update ? [{ label: `Có bản mới v${s.update.version}`, icon: 'refresh' as const, action: () => actions.openUpdate() }] : []),
+      { label: 'Tự kiểm tra cập nhật hằng ngày', checked: s.settings.checkUpdates, action: () => actions.toggleUpdateChecks() }],
   };
 }
 
@@ -94,6 +96,7 @@ export function TitleBar({ s }: { s: State }) {
               }}
             >
               {name}
+              {name === 'Help' && s.update && <span class="mi-dot" title={`threet v${s.update.version} available`} />}
             </div>
           ))}
         </div>

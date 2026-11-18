@@ -160,6 +160,25 @@ export const actions = {
     store.set({ lightbox: { ...lb, index: (lb.index + d + n) % n } });
   },
 
+  openUpdate() {
+    if (store.state.update) store.set({ updateOpen: true, menu: undefined, help: false });
+  },
+
+  /** later = ask again in a day; skip = never for this version. */
+  closeUpdate(how: 'later' | 'skip') {
+    const v = store.state.update?.version ?? '';
+    store.set({ updateOpen: false });
+    if (how === 'skip') actions.saveSettings({ skipVersion: v });
+    else actions.saveSettings({ updateSnoozeUntil: Date.now() + 24 * 60 * 60 * 1000 });
+    actions.focusGrid();
+  },
+
+  toggleUpdateChecks() {
+    const on = !store.state.settings.checkUpdates;
+    actions.saveSettings({ checkUpdates: on });
+    if (on) chrome.runtime.sendMessage({ type: 'threet:checkUpdate', force: true }).catch(() => {});
+  },
+
   toggleReader() {
     const sel = currentSel();
     if (sel.r === 0) return actions.editHeader(sel.c);
@@ -168,6 +187,7 @@ export const actions = {
 
   closeOverlays(): boolean {
     const s = store.state;
+    if (s.updateOpen) return actions.closeUpdate('later'), true;
     if (s.menu) return store.set({ menu: undefined }), true;
     if (s.lightbox) return store.set({ lightbox: undefined }), true;
     if (s.help) return actions.toggleHelp(), true;
@@ -176,7 +196,7 @@ export const actions = {
   },
 
   toggleBoss() {
-    store.set((s) => ({ boss: !s.boss, reading: undefined, lightbox: undefined, menu: undefined, help: false }));
+    store.set((s) => ({ boss: !s.boss, reading: undefined, lightbox: undefined, menu: undefined, help: false, updateOpen: false }));
   },
 
   toggleVisible() {

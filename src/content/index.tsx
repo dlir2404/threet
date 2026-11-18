@@ -10,6 +10,7 @@ import { installDevBridge } from './devbridge';
 import { log, logError } from './log';
 import { restoreCache, startCache } from './cache';
 import { syncFrames } from './frames';
+import { startUpdates } from './update';
 import { actions } from './actions';
 
 /**
@@ -137,6 +138,7 @@ async function main() {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type === 'threet:toggle') store.set((s) => ({ visible: !s.visible }));
   });
+  startUpdates();
   log('mounted', location.href);
 }
 

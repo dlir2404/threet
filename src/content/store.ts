@@ -1,3 +1,4 @@
+import type { UpdateInfo } from '../shared/update';
 import type { PageKind, Post, PostGroup, ThreadRow } from '../shared/types';
 
 export interface Settings {
@@ -11,6 +12,12 @@ export interface Settings {
   zoom: number;
   /** The guide pops up once on first use. */
   seenGuide: boolean;
+  /** Daily check of GitHub Releases for a newer version. */
+  checkUpdates: boolean;
+  /** "Remind me later": don't pop the update dialog again before this time. */
+  updateSnoozeUntil: number;
+  /** "Skip this version". */
+  skipVersion: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -22,6 +29,9 @@ export const DEFAULT_SETTINGS: Settings = {
   colTitles: {},
   zoom: 1,
   seenGuide: false,
+  checkUpdates: true,
+  updateSnoozeUntil: 0,
+  skipVersion: '',
 };
 
 export interface Tab {
@@ -68,6 +78,9 @@ export interface State {
   reading?: Sel;
   help: boolean;
   guideTab?: number;
+  /** Newer release found on GitHub (only set when it is newer than this build). */
+  update?: UpdateInfo;
+  updateOpen?: boolean;
   /** Column index whose title is being edited in place. */
   editingHeader?: number;
   /** Sheet tab being renamed in place. */

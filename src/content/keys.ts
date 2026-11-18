@@ -53,7 +53,7 @@ export function installKeys(host: HTMLElement) {
     else if (mod) handled = false; // leave browser shortcuts alone (⌘L, ⌘T, ⌘R…)
     else if (s.lightbox && (k === 'ArrowRight' || k === 'l' || k === ' ' || k === 'ArrowDown' || k === 'j')) actions.stepMedia(1);
     else if (s.lightbox && (k === 'ArrowLeft' || k === 'h' || k === 'ArrowUp' || k === 'k')) actions.stepMedia(-1);
-    else if (s.lightbox || s.help) handled = true;
+    else if (s.lightbox || s.help || s.updateOpen) handled = true;
     else if (k === 'ArrowDown' || k === 'j') actions.move(1, 0);
     else if (k === 'ArrowUp' || k === 'k') actions.move(-1, 0);
     else if (k === 'ArrowLeft' || k === 'h') actions.move(0, -1);

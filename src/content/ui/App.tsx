@@ -5,6 +5,7 @@ import { store, type State } from '../store';
 import { Grid } from './Grid';
 import { TitleBar, Toolbar } from './Chrome';
 import { Guide } from './Guide';
+import { UpdateDialog } from './Update';
 import { VideoMirror } from './Video';
 import { I, openMenu, useStore, type MenuItem } from './common';
 
@@ -43,6 +44,7 @@ export function App() {
       {s.menu && <Menu />}
       {s.toast && !s.boss && <div class="toast">{s.toast}</div>}
       {s.help && <Guide s={s} />}
+      {s.updateOpen && s.update && !s.boss && <UpdateDialog info={s.update} current={chrome.runtime.getManifest().version} />}
       {s.lightbox && <Lightbox lb={s.lightbox} />}
     </div>
   );
