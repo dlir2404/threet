@@ -2,6 +2,7 @@ import type { Post } from '../shared/types';
 import type { State } from './store';
 import type { Column } from '../sites/types';
 import { site } from './site';
+import { matcher } from './find';
 import { bossRows, BOSS_COLUMNS } from './boss';
 
 export type CellKind = NonNullable<Column['kind']>;
@@ -27,9 +28,14 @@ export interface SheetRow {
   tone?: 'muted' | 'strong';
   /** Row showing the post that the row above quotes. */
   quote?: boolean;
+  /** Find bar hit: which cells to highlight. */
+  hit?: { text: boolean; author: boolean };
 }
 
-/** The post's row, plus a row for the post it quotes (so the quoted post is readable and openable). */
+/**
+ * The post's row, plus a row for the post it quotes (Threads), so the quoted post is readable and
+ * openable. Forum quotes (post.quotes) stay inside the post's own text cell instead, like on the forum.
+ */
 function withQuote(row: SheetRow): SheetRow[] {
   const q = row.post?.quoted;
   if (!q) return [row];
@@ -55,6 +61,21 @@ export function colLetter(i: number): string {
 }
 
 export function buildModel(s: State): SheetModel {
+  const m = buildRows(s);
+  const find = !s.boss && s.find ? matcher({ keywords: s.find.query, user: s.find.user }) : null;
+  if (!find) return m;
+  let rows = m.rows.map((r) => {
+    const hit = r.post && find.match(r.post);
+    return hit ? { ...r, hit } : r;
+  });
+  if (s.find?.filter) {
+    // Keep matching rows (and a quoted post right under a kept row).
+    rows = rows.filter((r, i) => r.hit || (r.quote && rows[i - 1]?.hit));
+  }
+  return { ...m, rows };
+}
+
+function buildRows(s: State): SheetModel {
   if (s.boss) return { columns: BOSS_COLUMNS, rows: bossRows(), pageable: false };
   const tab = s.tabs.find((t) => t.id === s.active);
   const columns = site().columns.map((c) => ({
@@ -69,7 +90,8 @@ export function buildModel(s: State): SheetModel {
     list?.keys.forEach((k, i) => {
       const g = list.groups[k];
       g.posts.forEach((p, j) => {
-        rows.push(...withQuote({ key: p.code, post: p, no: j === 0 ? String(i + 1) : `${i + 1}.${j}`, depth: j === 0 ? 0 : 1 }));
+        // Search hits carry their post number in the thread (#2.994).
+        rows.push(...withQuote({ key: p.code, post: p, no: p.ordinal ?? (j === 0 ? String(i + 1) : `${i + 1}.${j}`), depth: j === 0 ? 0 : 1 }));
       });
     });
     return { columns, rows, pageable: true };
@@ -131,7 +153,7 @@ export function cellDisplay(row: SheetRow, col: Column): string {
         + (p.quoted ? `${p.text ? '\n' : ''}❝ quoting @${p.quoted.author} ↓` : '');
     }
     case 'media': return mediaLabel(p);
-    case 'ref': return p.code;
+    case 'ref': return row.quote && !p.path ? '' : p.code;
     default: return col.metric ? p.counts[col.metric] ?? '' : '';
   }
 }
@@ -145,13 +167,14 @@ export function cellFull(row: SheetRow, col: Column): string {
     case 'text': {
       let t = p.text;
       if (p.part) t = `[${p.part}] ${t}`;
+      if (p.quotes?.length) t = `${p.quotes.map((q) => `❝ ${q.author}: ${q.text}`).join('\n')}\n\n${t}`;
       if (p.quoted) t += `\n\n❝ @${p.quoted.author} — ${formatTime(p.quoted.time)}\n${p.quoted.text}`;
       if (p.link) t += `\n\n🔗 ${p.link.title} — ${p.link.url}`;
       return t;
     }
     case 'author': return `@${p.author}`;
     case 'media': return p.media.length ? p.media.map((m) => m.alt || m.src).join('\n') : p.link ? `=HYPERLINK("${p.link.url}", "${p.link.title}")` : '';
-    case 'ref': return `=HYPERLINK("https://www.threads.com${p.path}")`;
+    case 'ref': return p.path ? `=HYPERLINK("${location.origin}${p.path}")` : '';
     case 'time': return p.time ? new Date(p.time).toLocaleString() : p.timeLabel ?? '';
     default: return cellDisplay(row, col);
   }

@@ -71,13 +71,32 @@ async function pickTab(tabId?: number): Promise<chrome.tabs.Tab> {
   return tabs.find((t) => t.active && t.highlighted) ?? tabs.find((t) => t.active) ?? tabs[0];
 }
 
+/**
+ * While a debugger is attached Chrome shows "threet started debugging this browser" on every
+ * window, so attach only for a call and detach once the tab has been idle for a few seconds.
+ */
+const DETACH_IDLE_MS = 4000;
+const detachTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
 async function cdp(tabId: number, method: string, params: object = {}): Promise<any> {
+  clearTimeout(detachTimers.get(tabId));
   if (!attached.has(tabId)) {
     await chrome.debugger.attach({ tabId }, '1.3');
     attached.add(tabId);
     await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable');
   }
-  return chrome.debugger.sendCommand({ tabId }, method, params);
+  try {
+    return await chrome.debugger.sendCommand({ tabId }, method, params);
+  } finally {
+    detachTimers.set(
+      tabId,
+      setTimeout(() => {
+        detachTimers.delete(tabId);
+        attached.delete(tabId);
+        chrome.debugger.detach({ tabId }).catch(() => {});
+      }, DETACH_IDLE_MS),
+    );
+  }
 }
 
 function watchDebugger() {

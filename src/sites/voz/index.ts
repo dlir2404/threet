@@ -1,6 +1,7 @@
 import hosts from '../hosts.json';
 import type { Route, Site } from '../types';
-import { nextPage, parseGroups, parseNodePath, parseThread } from './parser';
+import { nextPage, pageInfo, parseGroups, parseNodePath, parseThread } from './parser';
+import { search, searchLabel } from './search';
 
 /** voz.vn — XenForo forum, read page by page (pages mode). */
 
@@ -11,6 +12,8 @@ function routeOf(pathname: string): Route {
   const f = parseNodePath(path, 'f');
   if (f) return { kind: 'feed', path: f.path };
   if (path === '/') return { kind: 'feed', path };
+  const sr = /^\/search\/\d+/.exec(path);
+  if (sr) return { kind: 'feed', path: sr[0] };
   const wn = /^\/whats-new(\/(posts|latest-activity|profile-posts))?/.exec(path);
   if (wn) return { kind: 'feed', path: wn[0] };
   return { kind: 'other', path };
@@ -25,11 +28,16 @@ export const voz: Site = {
   mode: 'pages',
   frames: false,
   nextPage,
+  pageInfo,
+  latestUrl: (threadPath) => `${threadPath}/latest`,
+  search,
+  searchLabel,
 
   routeOf,
   tabTitle(route, post) {
     if (post?.title) return short(post.title);
     if (route.kind === 'thread') return `#${route.code}`;
+    if (route.path.startsWith('/search/')) return '🔍 Search';
     if (route.path.startsWith('/whats-new')) return "What's new";
     if (route.path.startsWith('/f/')) return short(route.path.slice(3).replace(/\.\d+$/, '').replace(/-/g, ' ') || 'Forum');
     return 'Overview';

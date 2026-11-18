@@ -31,6 +31,20 @@ export interface Column {
   metric?: string;
 }
 
+/** pages mode: where a fetched document sits among its sheet's pages. */
+export interface PageInfo {
+  page: number;
+  total: number;
+  /** URL of page n with "{n}" in place of the number ("/t/x.1/page-{n}"). Empty when single-page. */
+  template: string;
+}
+
+/** A site search: keywords and/or an author (the find bar's two boxes). */
+export interface SearchQuery {
+  keywords: string;
+  user?: string;
+}
+
 export interface Site {
   id: string;
   /** Display name ("Threads"). */
@@ -49,6 +63,17 @@ export interface Site {
   frames: boolean;
   /** pages mode: URL of the next page of a fetched document, or null. */
   nextPage?(doc: Document): string | null;
+  /** pages mode: page number, page count and page-URL template of a fetched document. */
+  pageInfo?(doc: Document): PageInfo | null;
+  /** pages mode: URL that opens a thread at its newest page. */
+  latestUrl?(threadPath: string): string;
+  /**
+   * Run the site's own search, scoped to the sheet `scope` (a thread, a forum, or everywhere).
+   * Resolves to the results page: its path (the results sheet id) and parsed document.
+   */
+  search?(q: SearchQuery, scope: Route): Promise<{ path: string; doc: Document }>;
+  /** Heading of the find bar for a scope ("Tìm trong cả thớt này"). */
+  searchLabel?(scope: Route): string;
 
   routeOf(pathname: string): Route;
   /** Sheet-tab title for a route ("Overview", "@author"); `post` is the focal post once known. */

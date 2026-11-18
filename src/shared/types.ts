@@ -37,6 +37,11 @@ export interface Post {
   part?: string;
   counts: Counts;
   quoted?: Post;
+  /**
+   * Forum quotes ("X đã nói:"): excerpts of earlier posts, each pointing at its original
+   * (path …/post-ID). Shown on rows above the post; opening one jumps to the original.
+   */
+  quotes?: Post[];
   /** Link preview card under the text. */
   link?: { url: string; title: string; domain: string };
   /** Small context label above/inside the post ("Cuộc trò chuyện đầu tiên", "Tác giả gốc đã thích"). */

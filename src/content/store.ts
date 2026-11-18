@@ -55,6 +55,27 @@ export interface ListData {
 }
 
 
+/** pages mode: the page a sheet shows (one page at a time, like the site). */
+export interface Pager {
+  page: number;
+  total: number;
+  /** Page URL with "{n}" for the number; empty when the sheet has a single page. */
+  template: string;
+}
+
+/** Find bar (⌘F): text and/or "@author"; `filter` hides rows that don't match. */
+export interface Find {
+  /** Keywords box. */
+  query: string;
+  /** "Người đăng" box (author name), sites with their own search only. */
+  user: string;
+  filter: boolean;
+  /** Busy running the site's own search. */
+  searching?: boolean;
+  /** Why the site's search failed ("no results"), shown in the find bar. */
+  error?: string;
+}
+
 export interface Sel {
   r: number;
   c: number;
@@ -70,6 +91,12 @@ export interface State {
   lists: Record<string, ListData>;
   threads: Record<string, ThreadRow[]>;
   loading: boolean;
+  /** pages mode: which pages each sheet holds. */
+  pager: Record<string, Pager>;
+  /** Open find bar (undefined = closed). */
+  find?: Find;
+  /** The status-bar page box is being edited ("g"). */
+  pagerEdit?: boolean;
   /** Selection per tab id. r/c are 0-based over the data grid (r=0 is the header row). */
   sel: Record<string, Sel>;
   settings: Settings;
@@ -144,6 +171,7 @@ class Store {
     lists: {},
     threads: {},
     loading: false,
+    pager: {},
     sel: {},
     settings: { ...DEFAULT_SETTINGS },
     help: false,
@@ -198,13 +226,17 @@ class Store {
     });
   }
 
-  /** Merge freshly parsed groups into a list, keeping order and the posts we already saw. */
-  mergeList(path: string, fresh: PostGroup[]) {
+  /**
+   * Merge freshly parsed groups into a list sheet. By default new posts land after the last known
+   * one they follow (live feeds); `place: 'end'` appends a whole fetched page (pages mode), known
+   * posts are only updated.
+   */
+  mergeList(path: string, fresh: PostGroup[], place?: 'end') {
     if (!fresh.length) return false;
     const cur = this.state.lists[path] ?? { keys: [], groups: {} };
     const keys = [...cur.keys];
     const groups = { ...cur.groups };
-    let prevIdx = -1;
+    let prevIdx = place === 'end' ? keys.length - 1 : -1;
     let changed = false;
     for (const g of fresh) {
       const key = g.posts[0].code;
@@ -215,7 +247,7 @@ class Store {
         groups[key] = g;
         changed = true;
       } else {
-        prevIdx = at;
+        if (!place) prevIdx = at;
         if (!sameGroup(groups[key], g)) {
           groups[key] = mergeGroup(groups[key], g);
           changed = true;
@@ -224,6 +256,21 @@ class Store {
     }
     if (changed) this.set((s) => ({ lists: { ...s.lists, [path]: { keys, groups } } }));
     return changed;
+  }
+
+  /** Drop what a sheet holds (before loading a different page into it). */
+  clearSheet(id: string) {
+    const route = routeOf(id);
+    this.set((s) => {
+      if (route.kind === 'thread' && route.code) {
+        const threads = { ...s.threads };
+        delete threads[route.code];
+        return { threads };
+      }
+      const lists = { ...s.lists };
+      delete lists[id];
+      return { lists };
+    });
   }
 
   setThread(code: string, rows: ThreadRow[]) {
@@ -248,6 +295,8 @@ class Store {
           seen.add(r.post.code);
         }
       }
+      // Forum pages carry post numbers (#2.994): keep the sheet in thread order whatever page came first.
+      if (merged.every((r) => ordNum(r.post) > 0)) merged = [...merged].sort((a, b) => ordNum(a.post) - ordNum(b.post));
       if (merged.length === prev.length && merged.every((r, i) => r.post.code === prev[i].post.code && samePost(r.post, prev[i].post))) {
         return false;
       }
@@ -264,13 +313,15 @@ class Store {
     if (!route.code) return;
     this.setThread(route.code, rows);
     const fi = rows.findIndex((r) => r.focal);
-    if (fi < 0) return;
-    const want = tabTitle(route, rows[fi].post);
+    // A forum thread opened past page 1 has no focal post; its first row carries the title.
+    const titled = fi >= 0 ? rows[fi].post : rows.find((r) => r.post.title)?.post;
+    if (!titled) return;
+    const want = tabTitle(route, titled);
     const tab = this.state.tabs.find((t) => t.id === route.path);
     if (tab && !tab.renamed && tab.title !== want) {
       this.set((s) => ({ tabs: s.tabs.map((t) => (t.id === route.path ? { ...t, title: want } : t)) }));
     }
-    if (!this.state.sel[route.path]) this.setSel(route.path, { r: fi + 1, c: Math.max(0, site().columns.findIndex((c) => c.key === 'text')) });
+    if (fi >= 0 && !this.state.sel[route.path]) this.setSel(route.path, { r: fi + 1, c: Math.max(0, site().columns.findIndex((c) => c.key === 'text')) });
   }
 
   setSel(tab: string, sel: Sel) {
@@ -280,6 +331,11 @@ class Store {
   emit() {
     this.listeners.forEach((l) => l());
   }
+}
+
+/** "#2.994" → 2994 (0 when the post has no number). */
+export function ordNum(p: Post): number {
+  return p.ordinal ? parseInt(p.ordinal.replace(/\D/g, ''), 10) || 0 : 0;
 }
 
 function sameCounts(a: Post['counts'], b: Post['counts']): boolean {

@@ -51,6 +51,8 @@ export function installKeys(host: HTMLElement) {
     else if (mod && e.shiftKey && k === 'PageUp') actions.nextTab(-1);
     else if (mod && (k === '=' || k === '+')) actions.zoomBy(0.1);
     else if (mod && k === '-') actions.zoomBy(-0.1);
+    else if (mod && (k === 'f' || k === 'F') && !s.lightbox && !s.help) actions.openFind();
+    else if (mod && (k === 'g' || k === 'G') && actions.findHits().length) actions.findStep(e.shiftKey ? -1 : 1);
     else if (mod) handled = false; // leave browser shortcuts alone (⌘L, ⌘T, ⌘R…)
     else if (s.lightbox && (k === 'ArrowRight' || k === 'l' || k === ' ' || k === 'ArrowDown' || k === 'j')) actions.stepMedia(1);
     else if (s.lightbox && (k === 'ArrowLeft' || k === 'h' || k === 'ArrowUp' || k === 'k')) actions.stepMedia(-1);
@@ -63,7 +65,15 @@ export function installKeys(host: HTMLElement) {
     else if (k === 'PageDown') actions.move(10, 0);
     else if (k === 'PageUp') actions.move(-10, 0);
     else if (k === 'Home') actions.select({ r: store.state.sel[store.state.active]?.r ?? 1, c: 0 });
+    else if (k === 'Enter' && e.shiftKey) actions.openCurrent({ latest: true });
     else if (k === 'Enter' || k === 'o') actions.openCurrent();
+    else if (k === '/') actions.openFind();
+    else if (k === 'q') actions.jumpQuote();
+    else if (k === 'n' && s.find) actions.findStep(1);
+    else if (k === 'N' && s.find) actions.findStep(-1);
+    else if (k === ',') actions.stepPage(-1);
+    else if (k === '.') actions.stepPage(1);
+    else if (k === 'g') actions.editPager();
     else if (k === 'F2' || k === ' ' || k === 'e') actions.toggleReader();
     else if (k === 'Backspace' || k === 'u') actions.back();
     else if (k === 'r') actions.refresh();

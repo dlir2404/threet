@@ -5,6 +5,7 @@ import { cellDisplay, cellFull, cellNote, chipColor, colLetter, type Column, typ
 import type { State } from '../store';
 import { I } from './common';
 import { DirectVideo, VideoMirror } from './Video';
+import { FindBar } from './FindBar';
 
 const ROW_HDR = 46;
 const BLANK_W = 100;
@@ -139,6 +140,15 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
   };
   const onClick = (e: MouseEvent) => {
     const t = e.target as HTMLElement;
+    const quote = t.closest<HTMLElement>('.qblock');
+    if (quote) {
+      const hit = cellAt(e);
+      if (hit) {
+        actions.select({ r: hit.r, c: hit.c });
+        actions.jumpQuote(Number(quote.dataset.q) || 0);
+      }
+      return;
+    }
     if (t.closest('.lnk') || t.closest('.schip')) {
       const hit = cellAt(e);
       if (hit) {
@@ -261,6 +271,7 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
       {note && !s.boss && (
         <div class="notecard" style={{ left: `${note.x}px`, top: `${note.y}px` }}>{note.text}</div>
       )}
+      {s.find && !s.boss && <FindBar s={s} />}
       {hover && (
         <HoverCard
           h={hover}
@@ -381,6 +392,7 @@ function DataRow({ row, r, cols, sel }: { row: SheetRow; r: number; cols: Column
         if (row.tone === 'muted') cls.push('muted');
         if (row.tone === 'strong' && c.key === 'text') cls.push('strong');
         if (isSel) cls.push('sel');
+        if (row.hit && ((c.key === 'text' && row.hit.text) || (c.key === 'author' && row.hit.author))) cls.push('found');
         return (
           <div class={cls.join(' ')} style={{ width: `${c.width}px` }} data-r={r} data-c={i}>
             <CellBody row={row} col={c} />
@@ -417,8 +429,15 @@ function CellBody({ row, col }: { row: SheetRow; col: Column }) {
     );
   }
   if (col.kind === 'link' && text) return <span class="lnk">{text}</span>;
+  // Forum quotes: a grey block at the top of the reply's own cell, like on the forum; click = go to the original.
+  const quotes = col.key === 'text' ? row.post?.quotes : undefined;
   return (
     <>
+      {quotes?.map((q, i) => (
+        <div class="qblock" data-q={i} title={q.path ? `Tới bài gốc của ${q.author} (q)` : undefined}>
+          <b>{q.author}:</b> {q.text}
+        </div>
+      ))}
       {col.wrap ? <div class="clamp">{text}</div> : text}
       {note && <span class="note" />}
     </>

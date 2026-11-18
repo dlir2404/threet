@@ -79,3 +79,19 @@ describe('buildModel', () => {
     expect(buildModel(store.state).rows.map((r) => r.no)).toEqual(['1', '2', '2.1', '2.1.1', '2.2']);
   });
 });
+
+describe('pages mode merging', () => {
+  it('puts a fetched next page at the end even when it repeats sticky posts', () => {
+    store.mergeList('/p1', [g('s'), g('a'), g('b')]);
+    store.mergeList('/p1', [g('s'), g('c'), g('d')], 'end');
+    expect(keys('/p1')).toEqual(['s', 'a', 'b', 'c', 'd']);
+  });
+
+  it('keeps forum thread rows in post-number order, whatever page came first', () => {
+    const row = (code: string, ordinal: string) => ({ post: post(code, { ordinal }), depth: 1 });
+    store.setThread('F', [row('p41', '#41'), row('p42', '#42')]);
+    store.setThread('F', [row('p21', '#21'), row('p22', '#22')]);
+    store.setThread('F', [row('p1001', '#1.001')]);
+    expect(store.state.threads.F.map((r) => r.post.code)).toEqual(['p21', 'p22', 'p41', 'p42', 'p1001']);
+  });
+});

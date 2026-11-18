@@ -13,7 +13,7 @@ export function App() {
   const s = useStore();
   const model = useMemo(
     () => buildModel(s),
-    [s.boss, s.active, s.tabs, s.lists, s.threads, s.settings.colWidths],
+    [s.boss, s.active, s.tabs, s.lists, s.threads, s.settings.colWidths, s.settings.colTitles, s.find?.query, s.find?.user, s.find?.filter],
   );
 
   if (!s.settings.enabled || !s.visible) return null;
@@ -170,6 +170,7 @@ function SheetTabs({ s }: { s: State }) {
           </div>
         ))}
       </div>
+      {!s.boss && s.pager[s.active] && s.pager[s.active].total > 1 && <Pager s={s} />}
       {count > 0 && <div class="status-right">Count: {count}</div>}
       <div class="nav">
         <button class="round-btn" title="Previous sheet" onClick={() => actions.nextTab(-1)}><I n="chevronLeft" /></button>
@@ -177,6 +178,50 @@ function SheetTabs({ s }: { s: State }) {
       </div>
       <div class="vsep" />
       <button class="round-btn" title="Explore"><I n="chevronLeft" /></button>
+    </div>
+  );
+}
+
+/** Forum sheets: which pages are loaded, step to the previous/next one, jump anywhere ("g"). */
+function Pager({ s }: { s: State }) {
+  const p = s.pager[s.active];
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (s.pagerEdit) {
+      ref.current?.focus();
+      ref.current?.select();
+    }
+  }, [s.pagerEdit]);
+  const go = (v: string) => {
+    const t = v.trim().toLowerCase();
+    if (!t) return actions.editPager(false);
+    if (t === 'cuối' || t === 'cuoi' || t === 'last' || t === '$') return actions.gotoPage('last');
+    const n = parseInt(t, 10);
+    if (n > 0) actions.gotoPage(n);
+    else actions.editPager(false);
+  };
+  return (
+    <div class="pager">
+      <button class="round-btn" title="Trang đầu" disabled={s.loading || p.page <= 1} onClick={() => actions.gotoPage(1)}><I n="firstPage" /></button>
+      <button class="round-btn" title="Trang trước ( , )" disabled={s.loading || p.page <= 1} onClick={() => actions.stepPage(-1)}><I n="chevronLeft" /></button>
+      {s.pagerEdit ? (
+        <input
+          ref={ref}
+          class="pg-input"
+          placeholder={`1–${p.total}`}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') go((e.currentTarget as HTMLInputElement).value);
+            else if (e.key === 'Escape') actions.editPager(false);
+          }}
+          onBlur={() => s.pagerEdit && actions.editPager(false)}
+        />
+      ) : (
+        <button class="pg" title="Đi tới trang… (g)" onClick={() => actions.editPager()}>
+          Trang {p.page} / {p.total}
+        </button>
+      )}
+      <button class="round-btn" title="Trang sau ( . )" disabled={s.loading || p.page >= p.total} onClick={() => actions.stepPage(1)}><I n="chevronRight" /></button>
+      <button class="round-btn" title="Trang cuối" disabled={s.loading || p.page >= p.total} onClick={() => actions.gotoPage('last')}><I n="lastPage" /></button>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import type { Media, Post, PostGroup, ThreadRow } from '../../shared/types';
+import type { PageInfo } from '../types';
 import { textOf } from '../../content/dom';
 
 /**
@@ -6,6 +7,7 @@ import { textOf } from '../../content/dom';
  *   forum index   .node--forum           (box name, threads/posts counts, latest thread)
  *   thread list   .structItem--thread    (title, prefix label, author, replies/views)
  *   thread page   article.message--post  (author, time, #n, body with quotes, images, reactions)
+ *   search        li.block-row           (post hits: thread title, snippet, author, #n)
  */
 
 const ORIGIN = 'https://voz.vn';
@@ -87,22 +89,43 @@ function reactionCount(bar: Element | null): string {
   return String(names + (more ? parseInt(more[1].replace(/[.,]/g, ''), 10) : 0));
 }
 
+/** Images and attachment links inside a quote → "[ảnh]"; drop the "click to expand" link. */
+function quoteText(q: Element): string {
+  const c = (q.querySelector('.bbCodeBlock-content') ?? q).cloneNode(true) as Element;
+  c.querySelectorAll('.bbCodeBlock-expandLink, script, noscript, blockquote').forEach((x) => x.remove());
+  const doc = c.ownerDocument;
+  c.querySelectorAll('.bbImageWrapper, img.bbImage, a[href*="/attachments/"], .bbMediaWrapper, .bbMediaJustifier').forEach((x) => {
+    const isMedia = x.matches('.bbMediaWrapper, .bbMediaJustifier');
+    x.replaceWith(doc.createTextNode(isMedia ? ' [video] ' : ' [ảnh] '));
+  });
+  return text(c).replace(/(\[ảnh\]\s*)+/g, '[ảnh] ').replace(/\s+/g, ' ').trim();
+}
+
 function postRow(article: Element, threadPath: string): Post | null {
   const id = (article.getAttribute('data-content') ?? '').replace(/^post-/, '');
   if (!id) return null;
   const wrapper = article.querySelector('.message-body .bbWrapper');
   let body = '';
-  const quotes: string[] = [];
+  const quotes: Post[] = [];
   const media: Media[] = [];
   if (wrapper) {
     const clone = wrapper.cloneNode(true) as Element;
     for (const q of Array.from(clone.querySelectorAll('blockquote.bbCodeBlock--quote'))) {
-      const who = q.getAttribute('data-quote') ?? '';
-      const what = text(q.querySelector('.bbCodeBlock-content') ?? q).replace(/\s+/g, ' ');
-      quotes.push(`❝ ${who}: ${what.length > 120 ? `${what.slice(0, 119)}…` : what}`);
-      q.remove();
+      // Nested quotes belong to the outer one.
+      if (q.parentElement?.closest('blockquote.bbCodeBlock--quote')) continue;
+      const qid = /post:\s*(\d+)/.exec(q.getAttribute('data-source') ?? '')?.[1];
+      quotes.push({
+        code: qid ?? `${id}q${quotes.length}`,
+        // Quotes can come from another thread: /posts/ID/ redirects to wherever the post is.
+        path: qid ? `/posts/${qid}/` : '',
+        author: q.getAttribute('data-quote') ?? '',
+        text: quoteText(q),
+        media: [],
+        counts: {},
+        badges: [],
+      });
     }
-    clone.querySelectorAll('.bbCodeBlock-expandLink, script, noscript').forEach((x) => x.remove());
+    clone.querySelectorAll('blockquote.bbCodeBlock--quote, .bbCodeBlock-expandLink, script, noscript').forEach((x) => x.remove());
     body = text(clone);
     for (const img of Array.from(wrapper.querySelectorAll<HTMLImageElement>('img.bbImage, img[data-zoom-target]'))) {
       const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
@@ -117,18 +140,47 @@ function postRow(article: Element, threadPath: string): Post | null {
     avatar: article.querySelector('.message-avatar img')?.getAttribute('src') ?? undefined,
     time: article.querySelector('.message-attribution-main time')?.getAttribute('datetime') ?? undefined,
     ordinal,
-    text: [...quotes, body].filter(Boolean).join('\n'),
+    text: body,
+    quotes: quotes.length ? quotes : undefined,
     media,
     counts: { like: reactionCount(article.querySelector('.reactionsBar')) },
     badges: [],
   };
 }
 
+/** A search hit ("li.block-row"): links to the post, shows a snippet. */
+function searchRow(li: Element): Post | null {
+  const a = li.querySelector<HTMLAnchorElement>('.contentRow-title a');
+  const href = a?.getAttribute('href') ?? '';
+  const t = parseNodePath(href, 't');
+  if (!a || !t) return null;
+  const pid = /\/post-(\d+)/.exec(href)?.[1];
+  const minor = text(li.querySelector('.contentRow-minor'));
+  return {
+    code: pid ?? `t${t.id}`,
+    path: pid ? `${t.path}/post-${pid}` : t.path,
+    title: text(a),
+    author: li.getAttribute('data-author') || text(li.querySelector('.contentRow-minor .username')),
+    time: li.querySelector('.contentRow-minor time')?.getAttribute('datetime') ?? undefined,
+    ordinal: /#[\d.,]+/.exec(minor)?.[0],
+    topic: text(a),
+    text: text(li.querySelector('.contentRow-snippet')),
+    media: [],
+    counts: {},
+    badges: [],
+  };
+}
+
 export function parseGroups(scope: ParentNode): PostGroup[] {
   const threads = Array.from(scope.querySelectorAll('.structItem--thread'));
-  const rows = threads.length
+  const hits = threads.length ? [] : Array.from(scope.querySelectorAll('li.block-row')).filter((li) => li.querySelector('.contentRow-snippet'));
+  let rows = threads.length
     ? threads.map(threadRow)
-    : Array.from(scope.querySelectorAll('.node--forum')).map(forumRow);
+    : hits.length
+      ? hits.map(searchRow)
+      : Array.from(scope.querySelectorAll('.node--forum')).map(forumRow);
+  // Hits from a single thread: its title on every row says nothing.
+  if (hits.length && new Set(rows.map((p) => p?.title)).size === 1) rows = rows.map((p) => p && { ...p, topic: undefined });
   return rows.filter((p): p is Post => !!p).map((p) => ({ posts: [p] }));
 }
 
@@ -144,10 +196,34 @@ export function parseThread(scope: ParentNode, threadId: string): ThreadRow[] {
     if (post.ordinal === '#1') rows.push({ post: { ...post, title }, depth: 0, focal: true });
     else rows.push({ post, depth: 1 });
   }
+  // A later page has no #1: its first post still carries the thread title (for the tab).
+  if (rows[0] && !rows[0].focal && title) rows[0] = { ...rows[0], post: { ...rows[0].post, title } };
   return rows;
 }
 
 export function nextPage(doc: Document): string | null {
   const href = doc.querySelector('.pageNav-jump--next')?.getAttribute('href');
-  return href ? new URL(href, ORIGIN).pathname : null;
+  if (!href) return null;
+  const u = new URL(href, ORIGIN);
+  return u.pathname + u.search; // search results page with ?page=N
+}
+
+const pageNum = (el: Element | null | undefined) => parseInt(text(el).replace(/\D/g, ''), 10) || 0;
+
+/** "Trang 3 / 150" from the pager; template from its last-page link ("…/page-150" → "…/page-{n}"). */
+export function pageInfo(doc: Document): PageInfo | null {
+  const pages = Array.from(doc.querySelectorAll('.pageNav-page'));
+  if (!pages.length) return doc.querySelector('article.message--post, .structItem--thread, li.block-row') ? { page: 1, total: 1, template: '' } : null;
+  const page = pageNum(doc.querySelector('.pageNav-page--current')) || 1;
+  const total = Math.max(page, ...pages.map(pageNum));
+  const last = pages.map((p) => p.querySelector('a')).filter((a) => a && pageNum(a) === total).pop();
+  let template = '';
+  const href = last?.getAttribute('href');
+  if (href) {
+    const u = new URL(href, ORIGIN);
+    const rel = u.pathname + u.search;
+    template = rel.replace(new RegExp(`(page-|page=)${total}(?!\\d)`), '$1{n}');
+    if (!template.includes('{n}')) template = '';
+  }
+  return { page, total, template };
 }

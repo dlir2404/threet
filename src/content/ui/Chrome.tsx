@@ -19,7 +19,7 @@ function menus(s: State): Record<string, MenuItem[]> {
     Edit: [
       dummy('Undo', '⌘Z', { icon: 'undo' }), dummy('Redo', '⌘Y', { icon: 'redo' }), SEP,
       dummy('Cut', '⌘X'), { label: 'Copy', shortcut: '⌘C', action: () => actions.copyCell() }, dummy('Paste', '⌘V'), dummy('Paste special', undefined, { sub: true }), SEP,
-      dummy('Move', undefined, { sub: true }), dummy('Delete', undefined, { sub: true }), SEP, dummy('Find and replace', '⌘⇧H'),
+      dummy('Move', undefined, { sub: true }), dummy('Delete', undefined, { sub: true }), SEP, { label: 'Find and replace', shortcut: '⌘F', action: () => actions.openFind() },
     ],
     View: [
       dummy('Show', undefined, { sub: true }), dummy('Freeze', undefined, { sub: true }), dummy('Group', undefined, { sub: true }), SEP,

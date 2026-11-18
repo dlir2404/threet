@@ -64,8 +64,21 @@ export const GUIDE: Section[] = [
         <li><b>Trong thread</b> chọn một trả lời rồi <K>Enter</K> để đi sâu vào thread con của nó.</li>
         <li><b>Quay lại:</b> <K>Backspace</K> hoặc <K>u</K>: đóng tab hiện tại, về tab trước (vẫn giữ chỗ đang đọc).</li>
         <li><b>Chuyển tab:</b> <K>[</K> <K>]</K> hoặc bấm tab ở dưới.</li>
-        <li><b>Tải thêm:</b> cuộn hoặc đi xuống gần cuối là tự tải. Có thể bấm <K>m</K> hoặc nút <b>Add … more rows</b> cuối bảng.</li>
+        <li><b>Tải thêm:</b> cuộn hoặc đi xuống gần cuối là tự tải. Có thể bấm <K>m</K> hoặc nút <b>Add … more rows</b> cuối bảng. Trên voz thì không tự tải: mỗi lần một trang như voz, <K>m</K> sang trang sau.</li>
         <li><b>Bài mới:</b> <K>r</K> (Data → Refresh data).</li>
+      </ul>
+    ),
+  },
+  {
+    title: 'Tìm & diễn đàn',
+    body: () => (
+      <ul>
+        <li><b>Tìm trong thớt voz:</b> <K>⌘F</K> hoặc <K>/</K>, nhập <b>từ khoá</b> và/hoặc <b>người đăng</b>, bấm <K>Enter</K>. voz tìm trên cả thớt (đang ở box thì cả box), kết quả mở thành tab <b>🔍</b>; <K>Enter</K> ở một kết quả nhảy thẳng tới trang có bài đó.</li>
+        <li><b>Threads, Reddit:</b> <K>⌘F</K> tìm trong các dòng đã tải (cả chữ lẫn tên người đăng), ô khớp tô xanh; <K>Enter</K> / <K>⇧Enter</K> tới kết quả sau / trước, nút phễu chỉ hiện dòng khớp.</li>
+        <li>Gõ không dấu thì khớp mọi dấu (“sua” ra cả “sữa”, “sửa”), gõ có dấu thì khớp đúng dấu. <K>Esc</K> đóng ô tìm.</li>
+        <li><b>Thớt nhiều trang:</b> mỗi lần hiện một trang như voz, góc phải dưới ghi <b>Trang 3 / 150</b>. <K>,</K> <K>.</K> sang trang trước / sau, <K>g</K> rồi gõ số trang (hoặc “cuối”) để nhảy tới. Hai nút ⏮ ⏭ về trang đầu / cuối.</li>
+        <li><b>Trích dẫn:</b> khung xám ở đầu ô là đoạn bài đó trích. Bấm vào khung (hoặc <K>q</K>) để tới bài gốc: khác trang thì tự mở trang đó, khác thớt thì mở tab mới; <K>Backspace</K> để quay lại chỗ cũ.</li>
+        <li><b>Mở thớt ở trang mới nhất:</b> <K>⇧Enter</K> trên một thớt trong danh sách (<K>Enter</K> mở từ trang 1).</li>
       </ul>
     ),
   },
@@ -96,6 +109,11 @@ export const GUIDE: Section[] = [
             ['Mở rộng thanh công thức', '⌘⇧U'],
             ['Tab trước / sau', '[  ]  ·  ⌥↑ ⌥↓'],
             ['Tải thêm', 'm  ·  End'],
+            ['Tìm (voz: tìm cả thớt)', '⌘F  ·  /'],
+            ['Kết quả tô xanh sau / trước', 'n  N'],
+            ['Trang trước / sau / đi tới trang', ',  .  ·  g'],
+            ['Mở thớt ở trang mới nhất', '⇧Enter'],
+            ['Tới bài gốc của trích dẫn / quay lại', 'q  ·  Backspace'],
             ['Bài mới', 'r'],
             ['Xem trước ảnh', 'p'],
             ['Copy ô', '⌘C'],

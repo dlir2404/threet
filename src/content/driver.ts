@@ -3,6 +3,8 @@ import { videoFor } from './media';
 import { site } from './site';
 import { routeOf, store, tabTitle, type Route } from './store';
 import { log } from './log';
+import type { FindQuery } from './find';
+import { buildModel } from './sheet';
 import { hardNavigate } from './cache';
 import { closeFrame, frameFor, openFrame, scanFrame } from './frames';
 
@@ -77,6 +79,7 @@ export function scan() {
   // The pager is only in the DOM once the page has been parsed (scan also runs at document_start).
   if (site().mode === 'pages' && document.readyState !== 'loading' && !pageNext.has(route.path)) {
     pageNext.set(route.path, site().nextPage?.(document) ?? null);
+    notePage(route.path, document);
   }
   const list = site().findList(document);
   if (list) {
@@ -166,9 +169,8 @@ export async function loadMore(auto = false) {
   if (auto) autoStreak++;
   else autoStreak = 0;
   if (site().mode === 'pages') {
-    const id = store.state.active;
-    const next = pageNext.get(id);
-    if (next) await loadPage(id, next);
+    // One page at a time, like the site: nothing loads by itself; "load more" = next page.
+    if (!auto) stepPage(1);
     return;
   }
   const src = activeSource();
@@ -305,11 +307,19 @@ export function openPath(path: string, title?: string) {
   navigate(route.path);
 }
 
-/** Open a thread / sub-thread as a sheet backed by its own iframe; the page underneath stays put. */
-export function openThread(postPath: string, post?: Post) {
+/**
+ * Open a thread / sub-thread as a sheet backed by its own iframe; the page underneath stays put.
+ * Forums (pages mode): a post permalink opens the thread at that post's page; `latest` at its newest page.
+ */
+export function openThread(postPath: string, post?: Post, opts: { latest?: boolean } = {}) {
   const route = site().postRoute(postPath);
   if (!route) return;
   store.openTab(route, tabTitle(route, post));
+  if (site().mode === 'pages' && route.kind === 'thread') {
+    const path = postPath.replace(/^https?:\/\/[^/]+/, '').replace(/\/+$/, '');
+    if (opts.latest && site().latestUrl) return openThreadAt(route.path, site().latestUrl!(route.path), { selectLast: true });
+    if (path !== route.path && post?.code) return openThreadAt(route.path, path, { focus: post.code });
+  }
   showSheet(route.path);
 }
 
@@ -324,8 +334,72 @@ function showSheet(id: string) {
   else navigate(id);
 }
 
-/** Close the current sheet and show the previous one. */
+/**
+ * pages mode: positions to come back to after jumping to a quoted post, per sheet
+ * (the page and the post the jump started from).
+ */
+const jumps = new Map<string, { page: number; code: string }[]>();
+
+/** pages mode: go to the post a quote points at (same page: select it; else load its page). */
+export async function jumpToPost(path: string, code: string, fromCode?: string) {
+  if (site().mode !== 'pages' || !path || store.state.loading) return;
+  const id = store.state.active;
+  const remember = () => {
+    const p = store.state.pager[id];
+    if (p && fromCode) jumps.set(id, [...(jumps.get(id) ?? []).slice(-49), { page: p.page, code: fromCode }]);
+  };
+  const at = rowOf(id, code);
+  if (at >= 0) {
+    remember();
+    store.setSel(id, { r: at + 1, c: textCol() });
+    flash('Bài gốc · Backspace để quay lại', 3000);
+    return;
+  }
+  // The permalink redirects to the right thread and page; the quote may come from another thread.
+  flash('Working…', 15000);
+  let r: Response;
+  try {
+    r = await fetch(path, { credentials: 'include' });
+  } catch (e) {
+    flash(`Không mở được bài gốc (${String((e as Error)?.message ?? e)})`);
+    return;
+  }
+  const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+  if (!r.ok) {
+    // The forum's own reason ("post not found": deleted, or not visible to you) is the last message box.
+    const why = Array.from(doc.querySelectorAll('.blockMessage')).pop()?.textContent?.trim();
+    flash(`Không mở được bài gốc: ${why || `HTTP ${r.status}`}`, 5000);
+    return;
+  }
+  const route = site().postRoute(r.url);
+  if (!route || route.kind !== 'thread') {
+    flash('Không mở được bài gốc');
+    return;
+  }
+  if (route.path === id) {
+    remember();
+    await loadPage(id, r.url, { mode: 'reset', focus: code, doc });
+    flash('Bài gốc · Backspace để quay lại', 3000);
+    return;
+  }
+  // Quoted from another thread: open that thread in its own tab, at the post.
+  store.openTab(route, tabTitle(route));
+  await loadPage(route.path, r.url, { mode: 'reset', focus: code, doc });
+  flash('Bài gốc ở thớt khác · Backspace để quay lại', 3000);
+}
+
+/** Close the current sheet and show the previous one (pages mode: first undo quote jumps). */
 export function back() {
+  const stack = jumps.get(store.state.active);
+  const last = stack?.pop();
+  if (last) {
+    const id = store.state.active;
+    const at = rowOf(id, last.code);
+    const url = store.state.pager[id]?.page === last.page ? null : pageUrl(id, last.page);
+    if (at >= 0 && !url) store.setSel(id, { r: at + 1, c: textCol() });
+    else if (url) void loadPage(id, url, { mode: 'reset', focus: last.code });
+    return;
+  }
   const tabs = store.state.tabs;
   const i = tabs.findIndex((t) => t.id === store.state.active);
   if (i <= 0) return;
@@ -348,7 +422,10 @@ export function activateTab(id: string) {
 /** Ask the page for fresh posts: go to the top and let the site re-trigger its feed. */
 export function refresh() {
   if (site().mode === 'pages') {
-    void loadPage(store.state.active);
+    // Re-read the page the sheet shows: new replies land at the end.
+    const id = store.state.active;
+    const p = store.state.pager[id];
+    void loadPage(id, (p && pageUrl(id, p.page)) || id);
     return;
   }
   const frame = frameFor(store.state.active);
@@ -438,10 +515,27 @@ export async function liveVideo(vkey: string, code: string): Promise<HTMLVideoEl
 const pageNext = new Map<string, string | null>();
 
 function hasData(id: string): boolean {
-  const route = routeOf(id);
-  if (route.kind === 'thread' && route.code) return !!store.state.threads[route.code]?.length;
-  return !!store.state.lists[id]?.keys.length;
+  return rowCount(id) > 0;
 }
+
+/** Rows a sheet holds (thread rows or list items). */
+function rowCount(id: string): number {
+  const route = routeOf(id);
+  if (route.kind === 'thread' && route.code) return store.state.threads[route.code]?.length ?? 0;
+  return store.state.lists[id]?.keys.length ?? 0;
+}
+
+/** Rows of sheet `id` as displayed (quote rows included, find filter ignored). */
+function sheetRows(id: string) {
+  return buildModel({ ...store.state, active: id, find: undefined }).rows;
+}
+
+/** 0-based display row of a post in a sheet, or -1. */
+function rowOf(id: string, code: string): number {
+  return sheetRows(id).findIndex((r) => !r.quote && r.post?.code === code);
+}
+
+const textCol = () => Math.max(0, site().columns.findIndex((c) => c.key === 'text'));
 
 async function fetchDoc(url: string): Promise<Document> {
   const r = await fetch(url, { credentials: 'include' });
@@ -449,27 +543,149 @@ async function fetchDoc(url: string): Promise<Document> {
   return new DOMParser().parseFromString(await r.text(), 'text/html');
 }
 
+/** Short message in the status toast. */
+export function flash(msg: string, ms = 2500) {
+  window.clearTimeout(toastTimer);
+  store.set({ toast: msg });
+  toastTimer = window.setTimeout(() => store.state.toast === msg && store.set({ toast: undefined }), ms);
+}
+
+interface PageLoad {
+  /** merge: update the page the sheet shows (default) · reset: show this page instead. */
+  mode?: 'merge' | 'reset';
+  /** Select this post once loaded. */
+  focus?: string;
+  /** Already fetched document for `url` (skip the fetch). */
+  doc?: Document;
+  /** Select the last row (opening a thread at its newest post). */
+  selectLast?: boolean;
+}
+
+/** Record which page a sheet shows. */
+function notePage(id: string, doc: Document) {
+  const info = site().pageInfo?.(doc);
+  if (!info) return;
+  const cur = store.state.pager[id];
+  store.set((s) => ({ pager: { ...s.pager, [id]: { page: info.page, total: info.total, template: info.template || cur?.template || '' } } }));
+}
+
 /** Fetch `url` (default: the sheet's own first page) and merge it into sheet `id`. */
-async function loadPage(id: string, url = id) {
+async function loadPage(id: string, url = id, opts: PageLoad = {}) {
   if (store.state.loading) return;
+  const mode = opts.mode ?? 'merge';
   const route = routeOf(id);
   store.set({ loading: true });
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => store.state.loading && store.set({ toast: 'Working…' }), 900);
   let grew = false;
   try {
-    const doc = await fetchDoc(url);
+    const doc = opts.doc ?? (await fetchDoc(url));
+    if (mode === 'reset') store.clearSheet(id);
+    const before = rowCount(id);
     if (route.kind === 'thread' && route.code) {
-      const before = store.state.threads[route.code]?.length ?? 0;
       store.applyThread(route, site().parseThread(doc, route.code));
-      grew = (store.state.threads[route.code]?.length ?? 0) > before;
     } else {
-      grew = store.mergeList(route.path, site().parseGroups(doc));
+      store.mergeList(route.path, site().parseGroups(doc), 'end');
     }
+    const after = rowCount(id);
+    grew = after > before;
+    notePage(id, doc);
     pageNext.set(id, site().nextPage?.(doc) ?? null);
+    // Where the cursor goes.
+    const at = opts.focus ? rowOf(id, opts.focus) : -1;
+    if (at >= 0) store.setSel(id, { r: at + 1, c: textCol() });
+    else if (opts.selectLast && after) store.setSel(id, { r: sheetRows(id).length, c: textCol() });
+    else if (mode === 'reset') store.setSel(id, { r: 1, c: textCol() });
   } catch (e) {
     log('page load failed', url, String(e));
+    flash(`Không tải được trang (${String((e as Error)?.message ?? e)})`);
   } finally {
     finishLoading(grew);
+  }
+}
+
+/** Page URL from a sheet's pager template. */
+function pageUrl(id: string, n: number): string | null {
+  const p = store.state.pager[id];
+  if (!p) return null;
+  if (n === 1 && !p.template) return id;
+  return p.template ? p.template.replace('{n}', String(n)) : null;
+}
+
+/** ‹ / ›: show the page before or after the current one. */
+export function stepPage(d: 1 | -1) {
+  if (site().mode !== 'pages') return;
+  const id = store.state.active;
+  const p = store.state.pager[id];
+  if (d > 0) {
+    const next = pageNext.get(id) ?? (p && p.page < p.total ? pageUrl(id, p.page + 1) : null);
+    if (next) void loadPage(id, next, { mode: 'reset' });
+    else flash(p ? `Đã là trang cuối (${p.total})` : 'Không còn trang sau');
+    return;
+  }
+  const url = p && p.page > 1 ? pageUrl(id, p.page - 1) : null;
+  if (url) void loadPage(id, url, { mode: 'reset' });
+  else flash('Đã là trang đầu');
+}
+
+/** Jump to page n (or the last page): the sheet then holds just that page. */
+export function gotoPage(n: number | 'last') {
+  if (site().mode !== 'pages') return;
+  const id = store.state.active;
+  const p = store.state.pager[id];
+  const route = routeOf(id);
+  if (n === 'last' && route.kind === 'thread' && site().latestUrl) {
+    void loadPage(id, site().latestUrl!(id), { mode: 'reset', selectLast: true });
+    return;
+  }
+  if (!p) return;
+  const page = Math.min(Math.max(1, n === 'last' ? p.total : Math.round(n)), p.total);
+  if (page === p.page) return;
+  const url = pageUrl(id, page);
+  if (url) void loadPage(id, url, { mode: 'reset' });
+}
+
+/** pages mode: open a thread at a given post (search hit, quote) or at its newest page. */
+function openThreadAt(id: string, url: string, opts: PageLoad) {
+  if (opts.focus && rowOf(id, opts.focus) >= 0) {
+    store.setSel(id, { r: rowOf(id, opts.focus) + 1, c: textCol() });
+    return;
+  }
+  void loadPage(id, url, { mode: 'reset', ...opts });
+}
+
+/** Sheet a results tab was searched from, so searching again from it keeps the scope. */
+const searchScope = new Map<string, Route>();
+
+/** Scope the site's search covers from sheet `id` (a results tab keeps the scope it came from). */
+export function searchScopeOf(id: string): Route {
+  return searchScope.get(id) ?? routeOf(id);
+}
+
+/** Run the site's own search for the find-bar text; results open as a new sheet. */
+export async function searchSite(q: FindQuery) {
+  const s = site();
+  if (!s.search || store.state.find?.searching) return;
+  if (!q.keywords && !q.user) return;
+  const scope = searchScopeOf(store.state.active);
+  store.set((st) => ({ find: st.find && { ...st.find, searching: true, error: undefined } }));
+  try {
+    const { path, doc } = await s.search(q, scope);
+    searchScope.set(path, scope);
+    const words = [q.keywords, q.user && `👤 ${q.user}`].filter(Boolean).join(' ');
+    store.openTab({ kind: 'feed', path }, `🔍 ${words.length > 24 ? `${words.slice(0, 23)}…` : words}`);
+    store.mergeList(path, s.parseGroups(doc), 'end');
+    notePage(path, doc);
+    pageNext.set(path, s.nextPage?.(doc) ?? null);
+    store.setSel(path, { r: 1, c: textCol() });
+    // The results are the answer: close the find bar so Enter opens a hit.
+    store.set({ find: undefined });
+    const n = rowCount(path);
+    const more = (store.state.pager[path]?.total ?? 1) > 1 ? '+' : '';
+    flash(`${n}${more} kết quả · Enter mở bài ngay chỗ đó trong thớt`, 5000);
+  } catch (e) {
+    const error = String((e as Error)?.message ?? e);
+    if (store.state.find) store.set((st) => ({ find: st.find && { ...st.find, searching: false, error } }));
+    else flash(error, 4000);
   }
 }

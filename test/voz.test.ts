@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { nextPage, parseGroups, parseThread } from '../src/sites/voz/parser';
+import { nextPage, pageInfo, parseGroups, parseThread } from '../src/sites/voz/parser';
 import { voz } from '../src/sites/voz';
 
 // Synthetic XenForo 2 markup (no real user data).
@@ -37,7 +37,7 @@ const THREAD = `
 <article class="message message--post" data-author="binh" data-content="post-1002">
   <ul class="message-attribution-opposite"><li><a href="#">#2</a></li></ul>
   <div class="message-body"><div class="bbWrapper">
-    <blockquote class="bbCodeBlock bbCodeBlock--quote" data-quote="an"><div class="bbCodeBlock-content">Máy em hay treo</div><div class="bbCodeBlock-expandLink">Click to expand...</div></blockquote>
+    <blockquote class="bbCodeBlock bbCodeBlock--quote" data-quote="an" data-source="post: 1001"><div class="bbCodeBlock-content">Máy em hay treo <a href="/attachments/x-png.373388023/">Xem tệp đính kèm 373388023</a><div class="bbImageWrapper"><img class="bbImage" alt="b.png"></div><div class="bbCodeBlock-expandLink"><a>Nhấp để mở rộng...</a></div></div></blockquote>
     Thay RAM đi
   </div></div>
 </article>
@@ -76,8 +76,66 @@ describe('voz thread page', () => {
     expect(rows[0].post).toMatchObject({ ordinal: '#1', title: 'Hỏi đáp cấu hình', counts: { like: '5' } });
     expect(rows[0].post.media[0].src).toBe('https://voz.vn/attachments/a.jpg');
   });
-  it('turns quotes into a ❝ line and drops "Click to expand"', () => {
-    expect(rows[1].post.text).toBe('❝ an: Máy em hay treo\nThay RAM đi');
+  it('turns quotes into posts that point at the original, without attachment noise', () => {
+    expect(rows[1].post.text).toBe('Thay RAM đi');
+    expect(rows[1].post.quotes).toEqual([
+      expect.objectContaining({ code: '1001', author: 'an', path: '/posts/1001/', text: 'Máy em hay treo [ảnh]' }),
+    ]);
     expect(rows[1].post.path).toBe('/t/hoi-dap-cau-hinh.222/post-1002');
+  });
+});
+
+const SEARCH = `
+<ol class="block-body">
+  <li class="block-row block-row--separated" data-author="BE READY">
+    <div class="contentRow"><div class="contentRow-main">
+      <h3 class="contentRow-title"><a href="/t/hoi-bo-bim.1089186/post-44382603">Hội bố bỉm <em class="textHighlight">sữa</em></a></h3>
+      <div class="contentRow-snippet">Con mình bị dị ứng đạm <em class="textHighlight">sữa</em> bò</div>
+      <div class="contentRow-minor"><ul><li><a class="username">BE READY</a></li><li>Bài viết #2.994</li><li><time datetime="2026-11-17T14:52:08+0700"></time></li></ul></div>
+    </div></div>
+  </li>
+  <li class="block-row block-row--separated" data-author="an">
+    <div class="contentRow"><div class="contentRow-main">
+      <h3 class="contentRow-title"><a href="/t/hoi-bo-bim.1089186/post-44000001">Hội bố bỉm sữa</a></h3>
+      <div class="contentRow-snippet">mua sữa ở đâu</div>
+      <div class="contentRow-minor"><ul><li>Bài viết #12</li></ul></div>
+    </div></div>
+  </li>
+</ol>
+<div class="pageNav">
+  <a class="pageNav-jump pageNav-jump--next" href="/search/6569157/?page=2&amp;q=s%E1%BB%AFa&amp;c[thread]=1089186">Next</a>
+  <ul><li class="pageNav-page pageNav-page--current"><a href="/search/6569157/?q=x">1</a></li>
+  <li class="pageNav-page"><a href="/search/6569157/?page=10&amp;q=s%E1%BB%AFa">10</a></li></ul>
+</div>`;
+
+const PAGED = `
+<ul class="pageNav-main">
+  <li class="pageNav-page"><a href="/t/hoi-bo-bim.1089186/">1</a></li>
+  <li class="pageNav-page pageNav-page--current"><a href="/t/hoi-bo-bim.1089186/page-3">3</a></li>
+  <li class="pageNav-page"><a href="/t/hoi-bo-bim.1089186/page-150">150</a></li>
+</ul>
+<article class="message message--post" data-author="x" data-content="post-1"></article>`;
+
+describe('voz search and pages', () => {
+  it('reads search hits as posts of the thread, numbered like the thread', () => {
+    const posts = parseGroups(doc(SEARCH)).map((g) => g.posts[0]);
+    expect(posts.map((p) => [p.code, p.path, p.author, p.ordinal])).toEqual([
+      ['44382603', '/t/hoi-bo-bim.1089186/post-44382603', 'BE READY', '#2.994'],
+      ['44000001', '/t/hoi-bo-bim.1089186/post-44000001', 'an', '#12'],
+    ]);
+    expect(posts[0].text).toBe('Con mình bị dị ứng đạm sữa bò');
+    expect(posts[0].topic).toBeUndefined(); // one thread: no title chip on every row
+    expect(voz.postRoute(posts[0].path)).toEqual({ kind: 'thread', path: '/t/hoi-bo-bim.1089186', code: '1089186' });
+  });
+
+  it('keeps the query of the next results page and routes results as a sheet', () => {
+    expect(nextPage(doc(SEARCH))).toBe('/search/6569157/?page=2&q=s%E1%BB%AFa&c[thread]=1089186');
+    expect(voz.routeOf('/search/6569157/')).toEqual({ kind: 'feed', path: '/search/6569157' });
+  });
+
+  it('reads the page number, page count and page URL template', () => {
+    expect(pageInfo(doc(PAGED))).toEqual({ page: 3, total: 150, template: '/t/hoi-bo-bim.1089186/page-{n}' });
+    expect(pageInfo(doc(SEARCH))).toEqual({ page: 1, total: 10, template: '/search/6569157/?page={n}&q=s%E1%BB%AFa' });
+    expect(pageInfo(doc('<article class="message--post"></article>'))).toEqual({ page: 1, total: 1, template: '' });
   });
 });

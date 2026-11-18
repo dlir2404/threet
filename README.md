@@ -65,7 +65,7 @@ npm run build          # → dist/
 | --- | --- | --- |
 | [Threads](https://www.threads.com) | Feeds, profiles, saved/liked; surfaced replies and quoted posts | Thread and sub-threads, in a hidden iframe |
 | [Reddit](https://www.reddit.com) | Home, popular, subreddits, user pages: title, subreddit or flair, score, comments | Post with its comment tree (`2.1.1`), in a hidden iframe |
-| [voz.vn](https://voz.vn) | Forum index, sub-forums, and thread lists, with prefix, replies, views | Thread posts with `#n` numbers, quotes, and reactions; pages fetched in the background |
+| [voz.vn](https://voz.vn) | Forum index, sub-forums, and thread lists, with prefix, replies, views | Thread posts with `#n` numbers, quotes that jump to the original post, and reactions; pages fetched in the background, with a page pager and whole-thread search |
 
 Each site is an adapter under [`src/sites/`](src/sites); its domains live in [`src/sites/hosts.json`](src/sites/hosts.json), which also drives the manifest. threet is read-only on every site: it never posts, votes, or sends anything.
 
@@ -87,6 +87,8 @@ Open threads.com (or a supported site above). The sheet appears immediately (the
 - **Nothing skipped while scrolling.** Threads renders only the posts near the screen; threet walks the list step by step so every post lands in the sheet.
 - **Media and links.** Image and video chips with a hover preview and a viewer; link previews as link chips; Threads labels ("Original author liked") as cell notes.
 - **Boss key and a real "show original".** Esc for the decoy sheet, ⌥T for the real page.
+- **Find.** On voz, ⌘F searches the whole thread (or forum) with the forum's own search: type keywords and/or a poster name, press Enter, and the hits open as a 🔍 sheet where Enter jumps to the page that has the post. On Threads and Reddit, ⌘F works like Sheets: it highlights matching cells in the loaded rows (text or author, accent-insensitive when you type without accents), and the funnel hides everything else.
+- **Big forum threads.** One page at a time, like the forum: the status bar shows `Page 3 / 150`, `,` and `.` go to the page before or after, `g` jumps to any page, and ⇧Enter opens a thread at its newest page. Quotes show as a grey block at the top of the reply's cell, like on the forum; click it (or press q) to jump to the original post, loading its page or opening its thread if needed, and Backspace comes back.
 - **Keyboard first.** Every action has a key; F1 lists them.
 
 ## Keys
@@ -124,7 +126,7 @@ Clicking the extension icon also toggles the sheet.
 - **Parser** reads posts from the live DOM without relying on Threads' generated class names: `data-pressable-container`, permalinks with `<time>`, `dir="auto"` text runs, and the like/reply/repost/share button group.
 - **Driver** follows the page's client-side routing, walks the virtualised list to load more, and keeps every post it has seen, even after Threads unmounts it.
 - **Thread sheets** are backed by a same-origin `<iframe>` of the thread page, laid out under the sheet, so opening a thread never navigates the feed underneath. Threads normally refuses to be framed (`X-Frame-Options: DENY`, and an error page for `Sec-Fetch-Dest: iframe`); a [`declarativeNetRequest`](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest) rule lifts that **only for frames that threads.com opens itself**, so other sites still cannot frame Threads. If a frame does not render within 8 seconds, threet falls back to navigating the page.
-- **Other sites.** Reddit thread sheets use the same hidden-iframe approach (Reddit allows same-origin framing, so no header rule is needed). voz.vn is a classic paginated forum, so threet fetches the next page or a thread with your cookies and parses it with `DOMParser`; the real page never navigates.
+- **Other sites.** Reddit thread sheets use the same hidden-iframe approach (Reddit allows same-origin framing, so no header rule is needed). voz.vn is a classic paginated forum, so threet fetches the next page or a thread with your cookies and parses it with `DOMParser`; the real page never navigates. Search is the one exception: Cloudflare only lets the search form through as a real navigation, so threet submits it into a hidden same-origin iframe, the same request the site's own search box makes.
 - **UI** is Preact in a shadow root, styled after the current Sheets design; icons are Material Symbols and the UI font is Google Sans.
 
 ## Privacy and safety
