@@ -5,6 +5,7 @@ import { store, type State } from '../store';
 import { Grid } from './Grid';
 import { TitleBar, Toolbar } from './Chrome';
 import { Guide } from './Guide';
+import { VideoMirror } from './Video';
 import { I, openMenu, useStore, type MenuItem } from './common';
 
 export function App() {
@@ -42,12 +43,41 @@ export function App() {
       {s.menu && <Menu />}
       {s.toast && !s.boss && <div class="toast">{s.toast}</div>}
       {s.help && <Guide s={s} />}
-      {s.lightbox && (
-        <div class="lightbox" onMouseDown={() => store.set({ lightbox: undefined })}>
-          <img src={s.lightbox.src} alt={s.lightbox.alt ?? ''} referrerpolicy="origin-when-cross-origin" onMouseDown={(e) => e.stopPropagation()} />
-          <button class="round-btn x" title="Close (Esc)"><I n="close" /></button>
-        </div>
+      {s.lightbox && <Lightbox lb={s.lightbox} />}
+    </div>
+  );
+}
+
+function Lightbox({ lb }: { lb: NonNullable<State['lightbox']> }) {
+  const cur = lb.items[lb.index];
+  const many = lb.items.length > 1;
+  const stop = (e: Event) => e.stopPropagation();
+  return (
+    <div class="lightbox" onMouseDown={() => store.set({ lightbox: undefined })}>
+      <div class="lb-stage" onMouseDown={stop}>
+        {cur.video && cur.vkey && cur.code ? (
+          <VideoMirror key={cur.vkey} vkey={cur.vkey} code={cur.code} poster={cur.src || undefined} />
+        ) : (
+          <img src={cur.src} alt={cur.alt ?? ''} referrerpolicy="origin-when-cross-origin" />
+        )}
+      </div>
+      {many && (
+        <>
+          <button class="round-btn lb-nav prev" title="Previous (←)" onMouseDown={(e) => { stop(e); actions.stepMedia(-1); }}><I n="chevronLeft" /></button>
+          <button class="round-btn lb-nav next" title="Next (→)" onMouseDown={(e) => { stop(e); actions.stepMedia(1); }}><I n="chevronRight" /></button>
+          <div class="lb-count">{lb.index + 1} / {lb.items.length}</div>
+          <div class="lb-strip" onMouseDown={stop}>
+            {lb.items.map((it, i) => (
+              <button class={`lb-thumb ${i === lb.index ? 'on' : ''}`} onMouseDown={() => store.set({ lightbox: { ...lb, index: i } })}>
+                {it.src ? <img src={it.src} referrerpolicy="origin-when-cross-origin" /> : <span class="lb-noimg" />}
+                {it.video && <I n="playCircle" />}
+              </button>
+            ))}
+          </div>
+        </>
       )}
+      {cur.alt && <div class="lb-cap">{cur.alt}</div>}
+      <button class="round-btn x" title="Close (Esc)"><I n="close" /></button>
     </div>
   );
 }

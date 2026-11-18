@@ -1,3 +1,4 @@
+import type { Media } from '../shared/types';
 import * as driver from './driver';
 import { buildModel, cellFull, POST_COLUMNS, type SheetModel } from './sheet';
 import { DEFAULT_SETTINGS, store, type Sel, type Settings } from './store';
@@ -55,8 +56,7 @@ export const actions = {
     const col = m.columns[sel.c];
     if (!row?.post || store.state.boss) return;
     if (col?.key === 'media' && row.post.media.length) {
-      const md = row.post.media[0];
-      store.set({ lightbox: { src: md.full || md.src, alt: md.alt } });
+      actions.openMedia(row.post.media, 0, row.post.code);
       return;
     }
     if (col?.key === 'media' && row.post.link) {
@@ -142,6 +142,22 @@ export const actions = {
     if (i < 0 || j < 0 || j >= tabs.length) return;
     [tabs[i], tabs[j]] = [tabs[j], tabs[i]];
     store.set({ tabs });
+  },
+
+  /** Open the media viewer on a post's attachments (all of them, not just the first). */
+  openMedia(media: Media[], index = 0, code?: string) {
+    // Videos are mirrored from the page's live <video> (ui/Video.tsx); src is their poster.
+    const items = media
+      .map((m) => ({ src: m.kind === 'video' ? m.full ?? '' : m.full || m.src, alt: m.alt, video: m.kind === 'video', vkey: m.vkey, code }))
+      .filter((it) => it.src || (it.vkey && it.code));
+    if (items.length) store.set({ lightbox: { items, index: Math.min(index, items.length - 1) } });
+  },
+
+  stepMedia(d: number) {
+    const lb = store.state.lightbox;
+    if (!lb) return;
+    const n = lb.items.length;
+    store.set({ lightbox: { ...lb, index: (lb.index + d + n) % n } });
   },
 
   toggleReader() {

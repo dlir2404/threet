@@ -72,8 +72,17 @@ export interface State {
   editingHeader?: number;
   /** Sheet tab being renamed in place. */
   renamingTab?: string;
-  lightbox?: { src: string; alt?: string };
+  lightbox?: { items: LightboxItem[]; index: number };
   menu?: OpenMenu;
+}
+
+export interface LightboxItem {
+  src: string;
+  alt?: string;
+  video?: boolean;
+  /** Videos: live element key + post code, to play it (see ui/Video.tsx). */
+  vkey?: string;
+  code?: string;
 }
 
 export interface MenuItemLike {
@@ -214,6 +223,10 @@ class Store {
   setThread(code: string, rows: ThreadRow[]) {
     if (!rows.length) return false;
     const prev = this.state.threads[code];
+    if (prev) {
+      const old = new Map(prev.map((r) => [r.post.code, r.post] as const));
+      rows = rows.map((r) => ({ ...r, post: keepPosters(old.get(r.post.code), r.post) }));
+    }
     // Replies virtualise away as the real page scrolls; keep the ones we have seen.
     let merged = rows;
     if (prev) {
@@ -265,7 +278,14 @@ class Store {
 
 function samePost(a: Post, b: Post): boolean {
   return a.text === b.text && a.counts.like === b.counts.like && a.counts.reply === b.counts.reply
-    && a.counts.repost === b.counts.repost && a.counts.share === b.counts.share && a.media.length === b.media.length;
+    && a.counts.repost === b.counts.repost && a.counts.share === b.counts.share && a.media.length === b.media.length
+    && a.media.every((m, i) => !!m.full === !!b.media[i].full);
+}
+
+/** A re-parse may miss a video's poster (Threads drops it once the video plays): keep the old one. */
+function keepPosters(old: Post | undefined, next: Post): Post {
+  if (!old || !next.media.some((m, i) => !m.full && old.media[i]?.full)) return next;
+  return { ...next, media: next.media.map((m, i) => (m.full || !old.media[i]?.full ? m : { ...m, full: old.media[i].full })) };
 }
 
 function sameGroup(a: PostGroup, b: PostGroup): boolean {
@@ -274,7 +294,7 @@ function sameGroup(a: PostGroup, b: PostGroup): boolean {
 
 function mergeGroup(a: PostGroup, b: PostGroup): PostGroup {
   const byCode = new Map(a.posts.map((p) => [p.code, p] as const));
-  for (const p of b.posts) byCode.set(p.code, p);
+  for (const p of b.posts) byCode.set(p.code, keepPosters(byCode.get(p.code), p));
   const order = [...b.posts.map((p) => p.code), ...a.posts.map((p) => p.code).filter((c) => !b.posts.some((p) => p.code === c))];
   return { posts: order.map((c) => byCode.get(c)!) };
 }

@@ -1,4 +1,4 @@
-import { CONTAINER_SEL, findList, indexItems, parseGroups, parsePostPath, parseThread } from './parser';
+import { CONTAINER_SEL, findList, indexItems, parseGroups, parsePostPath, parseThread, videoFor } from './parser';
 import { routeOf, store, tabTitle, type Route } from './store';
 import { log } from './log';
 import { hardNavigate } from './cache';
@@ -369,4 +369,30 @@ export async function coverage() {
   for (const [c, idx] of known) if (!stored.has(c) && !missing.some((m) => m.code === c)) missing.push({ index: idx, code: c });
   sc.scrollTop = keep;
   return { listChildren: n, indexedItems: indexed.size, storedPosts: stored.size, unseenChecked: unseen.length, nonPostItems: nonPost, missingFromSheet: missing };
+}
+
+/**
+ * The live <video> for a media key, so the sheet can mirror it. If Threads has unmounted it
+ * (virtualised list), scroll the real page (hidden under the sheet) to the post so Threads
+ * mounts and loads it again.
+ */
+export async function liveVideo(vkey: string, code: string): Promise<HTMLVideoElement | null> {
+  let el = videoFor(vkey);
+  if (el) return el;
+  const active = store.state.active;
+  const frame = frameFor(active);
+  const doc = frame?.el.contentDocument ?? document;
+  const pagePath = frame ? active : routeOf(location.pathname).path;
+  const idx = itemIndex.get(pagePath)?.get(code);
+  const list = findList(doc);
+  const target = idx != null ? list?.children[idx] : doc.querySelector(`a[href*="/post/${code}"] time`);
+  if (!target) return null;
+  target.scrollIntoView({ block: 'center' });
+  for (let t = 0; t < 30 && !el; t++) {
+    await sleep(100);
+    if (frame) scanFrame(active);
+    else scan();
+    el = videoFor(vkey);
+  }
+  return el;
 }

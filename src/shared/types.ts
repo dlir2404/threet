@@ -6,6 +6,8 @@ export interface Media {
   alt?: string;
   width?: number;
   height?: number;
+  /** Videos: key of the live <video> on the page (see videoFor() in parser), e.g. "DfzRL8_H6bw:v0". */
+  vkey?: string;
 }
 
 export interface Counts {

@@ -1,24 +1,43 @@
+import type { Media } from '../../shared/types';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { actions, currentSel, MIN_COLS } from '../actions';
 import { cellDisplay, cellFull, cellNote, chipColor, colLetter, type Column, type SheetModel, type SheetRow } from '../sheet';
 import type { State } from '../store';
 import { I } from './common';
+import { VideoMirror } from './Video';
 
 const ROW_HDR = 46;
 const BLANK_W = 100;
 const FILLER_ROWS = 40;
 
+/** Attachment preview card under/over a media chip. It is interactive (arrows, thumbnails). */
 interface Hover {
+  key: string;
   x: number;
-  y: number;
-  src: string;
-  cap?: string;
+  /** Anchored below the chip (top) or above it (bottom), in grid-wrap coordinates. */
+  top?: number;
+  bottom?: number;
+  media: Media[];
+  items: { src: string; alt?: string; video: boolean; vkey?: string }[];
+  index: number;
+  code: string;
 }
+
+/** Grace period so the pointer can travel from the chip into the card. */
+const HOVER_HIDE_MS = 300;
 
 export function Grid({ s, model }: { s: State; model: SheetModel }) {
   const scroller = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<Hover | null>(null);
+  const hideTimer = useRef<number | undefined>(undefined);
+  const keepHover = () => window.clearTimeout(hideTimer.current);
+  // Boss key / tab switch: drop the preview at once (it may be playing a video).
+  useEffect(() => setHover(null), [s.boss, s.active]);
+  const hideHoverSoon = () => {
+    window.clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => setHover(null), HOVER_HIDE_MS);
+  };
   const [note, setNote] = useState<{ x: number; y: number; text: string; key: string } | null>(null);
   const [reader, setReader] = useState<{ left: number; top: number; width: number } | null>(null);
   const sel = currentSel();
@@ -130,19 +149,25 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
     } else if (note) setNote(null);
     if (!s.settings.showPreviews || s.boss) return hover && setHover(null);
     const chip = (e.target as HTMLElement).closest<HTMLElement>('.schip');
-    if (!chip) return hover && setHover(null);
+    if (!chip) return hover && hideHoverSoon();
+    keepHover();
     const hit = cellAt(e);
     const row = hit ? model.rows[hit.r - 1] : undefined;
-    const m = row?.post?.media[0];
-    if (!m) return;
+    const media = row?.post?.media ?? [];
+    const items = media
+      .map((x) => ({ src: x.kind === 'video' ? x.full || '' : x.src, alt: x.alt, video: x.kind === 'video', vkey: x.vkey }))
+      .filter((x) => x.src || x.vkey);
+    if (!row?.post || !items.length) return;
+    const key = `${s.active}:${row.key}`;
+    if (hover?.key === key) return;
     const wrap = scroller.current!.parentElement!.getBoundingClientRect();
     const r = chip.getBoundingClientRect();
-    const src = m.kind === 'video' ? m.full || '' : m.src;
-    if (!src) return;
     let x = r.left - wrap.left;
-    if (x + 340 > wrap.width) x = wrap.width - 344;
-    const y = r.bottom - wrap.top + 4;
-    if (hover?.src !== src) setHover({ x, y, src, cap: m.alt });
+    if (x + 344 > wrap.width) x = wrap.width - 348;
+    // Flush against the chip (no gap); flip above when there isn't room below.
+    const below = wrap.bottom - r.bottom, above = r.top - wrap.top;
+    const place = below >= 300 || below >= above ? { top: r.bottom - wrap.top } : { bottom: wrap.bottom - r.top };
+    setHover({ key, x, ...place, media, items, index: 0, code: row.post.code });
   };
 
   const startResize = (e: MouseEvent, col: Column) => {
@@ -179,7 +204,7 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
         onClick={onClick}
         onMouseMove={onMove}
         onMouseLeave={() => {
-          setHover(null);
+          if (hover) hideHoverSoon();
           setNote(null);
         }}
       >
@@ -221,11 +246,64 @@ export function Grid({ s, model }: { s: State; model: SheetModel }) {
         <div class="notecard" style={{ left: `${note.x}px`, top: `${note.y}px` }}>{note.text}</div>
       )}
       {hover && (
-        <div class="hovercard" style={{ left: `${hover.x}px`, top: `${hover.y}px` }}>
-          <img src={hover.src} referrerpolicy="origin-when-cross-origin" />
-          {hover.cap && <div class="cap">{hover.cap}</div>}
+        <HoverCard
+          h={hover}
+          onEnter={keepHover}
+          onLeave={hideHoverSoon}
+          onIndex={(index) => setHover({ ...hover, index })}
+          onOpen={() => {
+            setHover(null);
+            actions.openMedia(hover.media, hover.index, hover.code);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function HoverCard({ h, onEnter, onLeave, onIndex, onOpen }: {
+  h: Hover;
+  onEnter: () => void;
+  onLeave: () => void;
+  onIndex: (i: number) => void;
+  onOpen: () => void;
+}) {
+  const cur = h.items[h.index];
+  const n = h.items.length;
+  const step = (e: MouseEvent, d: number) => {
+    e.stopPropagation();
+    onIndex((h.index + d + n) % n);
+  };
+  const pos: Record<string, string> = { left: `${h.x}px` };
+  if (h.top != null) pos.top = `${h.top}px`;
+  if (h.bottom != null) pos.bottom = `${h.bottom}px`;
+  return (
+    <div class="hovercard" style={pos} onMouseEnter={onEnter} onMouseLeave={onLeave} onMouseDown={(e) => e.stopPropagation()}>
+      <div class="hc-main" title="Open viewer" onClick={onOpen}>
+        {cur.video && cur.vkey ? (
+          <VideoMirror key={cur.vkey} vkey={cur.vkey} code={h.code} poster={cur.src || undefined} compact />
+        ) : (
+          <img src={cur.src} referrerpolicy="origin-when-cross-origin" />
+        )}
+        {n > 1 && (
+          <>
+            <button class="hc-nav prev" title="Previous" onClick={(e) => step(e, -1)}><I n="chevronLeft" /></button>
+            <button class="hc-nav next" title="Next" onClick={(e) => step(e, 1)}><I n="chevronRight" /></button>
+            <span class="hc-count">{h.index + 1} / {n}</span>
+          </>
+        )}
+      </div>
+      {n > 1 && (
+        <div class="hc-strip">
+          {h.items.map((it, i) => (
+            <button class={`hc-thumb ${i === h.index ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); onIndex(i); }}>
+              {it.src ? <img src={it.src} referrerpolicy="origin-when-cross-origin" /> : <span class="lb-noimg" />}
+              {it.video && <I n="playCircle" />}
+            </button>
+          ))}
         </div>
       )}
+      {cur.alt && <div class="cap">{cur.alt}</div>}
     </div>
   );
 }

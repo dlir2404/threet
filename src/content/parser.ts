@@ -119,6 +119,38 @@ function isVideoPoster(img: HTMLImageElement): boolean {
   return (img.getAttribute('width') ?? '').endsWith('%') || (img.getAttribute('height') ?? '').endsWith('%');
 }
 
+/**
+ * Live <video> elements by media key. Threads streams video through MediaSource (blob: URLs),
+ * which can't be reused, but a live element can be mirrored with captureStream().
+ */
+const videoEls = new Map<string, WeakRef<HTMLVideoElement>>();
+
+export function videoFor(vkey: string): HTMLVideoElement | null {
+  const el = videoEls.get(vkey)?.deref();
+  return el?.isConnected ? el : null;
+}
+
+/** Frames grabbed from playing videos, used as their poster once Threads drops the poster image. */
+const frames = new WeakMap<HTMLVideoElement, string>();
+
+function frameOf(v: HTMLVideoElement): string | undefined {
+  const done = frames.get(v);
+  if (done) return done;
+  if (v.readyState < 2 || !v.videoWidth) return undefined;
+  try {
+    const scale = Math.min(1, 480 / v.videoWidth);
+    const c = v.ownerDocument.createElement('canvas');
+    c.width = Math.round(v.videoWidth * scale);
+    c.height = Math.round(v.videoHeight * scale);
+    c.getContext('2d')!.drawImage(v, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', 0.7);
+    frames.set(v, url);
+    return url;
+  } catch {
+    return undefined; // tainted canvas: no poster
+  }
+}
+
 function posterFor(video: Element): string | undefined {
   let box: Element | null = video.parentElement;
   for (let i = 0; box && i < 4; i++, box = box.parentElement) {
@@ -181,7 +213,16 @@ export function parsePost(root: Element): Post | null {
   // image and/or title spans. Inline links inside the text stay part of the text.
   const card = own<HTMLAnchorElement>(root, 'a[href]').find((a) => {
     const href = a.getAttribute('href') ?? '';
-    return /^https?:\/\//.test(href) && !/threads\.(com|net)\/@/.test(href) && !a.closest('span[dir="auto"]')
+    let host = '';
+    try {
+      host = new URL(href).hostname;
+    } catch {
+      return false; // relative = a Threads page
+    }
+    // Outbound only: Threads' own pages (profiles, tags, search) are not link previews,
+    // except its l.threads.com redirector, which wraps every external link.
+    const internal = /(^|\.)threads\.(com|net)$/.test(host) && host !== 'l.threads.com';
+    return !internal && !a.closest('span[dir="auto"]')
       && (a.querySelector('img') || a.querySelectorAll('span[dir="auto"]').length >= 1);
   });
   let link: Post['link'];
@@ -306,11 +347,14 @@ export function parsePost(root: Element): Post | null {
       height: parseInt(img.getAttribute('height') ?? '', 10) || undefined,
     });
   }
+  let vn = 0;
   for (const v of own<HTMLVideoElement>(root, 'video')) {
     if (quotedRoot?.contains(v)) continue;
     const src = v.getAttribute('src') || v.querySelector('source')?.getAttribute('src') || '';
-    // src is usually a page-local blob: URL; keep the thumbnail for previews.
-    media.push({ kind: 'video', src, full: v.getAttribute('poster') || posterFor(v) });
+    const vkey = `${ref.code}:v${vn++}`;
+    videoEls.set(vkey, new WeakRef(v));
+    // src is a page-local blob: URL; previews use the poster image, or a frame once it plays.
+    media.push({ kind: 'video', src, full: v.getAttribute('poster') || posterFor(v) || frameOf(v), vkey });
   }
 
 

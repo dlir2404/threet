@@ -46,7 +46,7 @@ export const GUIDE: Section[] = [
           <tr><td>Votes</td><td>Lượt thích.</td></tr>
           <tr><td>Comments</td><td>Số trả lời. Có số tức là mở được thread con.</td></tr>
           <tr><td>Reposts / Shares</td><td>Lượt đăng lại / chia sẻ.</td></tr>
-          <tr><td>Attachment</td><td>Ảnh / video. Rê chuột để xem trước, <K>Enter</K> để xem lớn.</td></tr>
+          <tr><td>Attachment</td><td>Ảnh / video. Rê chuột để xem trước (bấm ‹ › hoặc ảnh nhỏ để chuyển, video phát ngay, mặc định tắt tiếng), <K>Enter</K> để xem lớn rồi dùng <K>←</K> <K>→</K>.</td></tr>
           <tr><td>Ticket ID</td><td>Mã bài. Bấm để mở thread.</td></tr>
           <tr><td><span class="tri" /> góc ô</td><td>Ghi chú (note): nhãn Threads gắn cho bài, ví dụ “Tác giả gốc đã thích”, “Cuộc trò chuyện đầu tiên”. Rê chuột vào ô để xem.</td></tr>
         </tbody>

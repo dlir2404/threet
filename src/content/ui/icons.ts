@@ -49,12 +49,16 @@ import refresh from '@material-symbols/svg-400/outlined/refresh.svg';
 import arrowBack from '@material-symbols/svg-400/outlined/arrow_back.svg';
 import formatColorText from '@material-symbols/svg-400/outlined/format_color_text.svg';
 import arrowRight from '@material-symbols/svg-400/outlined/arrow_right.svg';
+import playArrow from '@material-symbols/svg-400/outlined/play_arrow.svg';
+import pause from '@material-symbols/svg-400/outlined/pause.svg';
+import volumeOff from '@material-symbols/svg-400/outlined/volume_off.svg';
+import volumeUp from '@material-symbols/svg-400/outlined/volume_up.svg';
 
 export const icons = {
   search, undo, redo, print, formatPaint, attachMoney, percent, decimalDecrease, decimalIncrease,
   bold, italic, strike, colorFill, borderAll, cellMerge, alignLeft, valignBottom, wrapText, textRotation,
   link, addComment, insertChart, filter, filterViews, functions, chevronUp, chevronDown, history, comment,
   videocam, star, driveMove, cloudDone, lock, dropDown, add, menu, chevronLeft, chevronRight, remove,
-  check, close, image, playCircle, openInNew, keyboard, refresh, arrowBack, formatColorText, arrowRight,
+  check, close, image, playCircle, openInNew, keyboard, refresh, arrowBack, formatColorText, arrowRight, playArrow, pause, volumeOff, volumeUp,
 };
 export type IconName = keyof typeof icons;
